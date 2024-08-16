@@ -1,11 +1,26 @@
 [package]
-name = "multiplexer"
+name = "multiplexer-evm"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"  # Build the solidity contracts
+authors = ["BitFinding"]
+description = "A Rust library and Solidity contracts for building and executing complex EVM transaction sequences, including flash loans."
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/BitFinding/multiplexer"
+repository = "https://github.com/BitFinding/multiplexer"
+keywords = ["ethereum", "solidity", "evm", "mev", "flashloan"]
+categories = ["cryptography::cryptocurrencies", "development-tools::build-utils"]
+readme = "README.md"
 
 [dependencies]
-alloy = "0.2.1"
+alloy-primitives = { version = "1.0" }
 
-[[bin]]
-name = "multiplexer"
-path = "src/multiplexer.rs"
+[dev-dependencies]
+tokio = { version = "1.44", features = ["rt", "macros"] }
+alloy = { version = "0.14", features = ["full", "node-bindings"] }
+
+[build-dependencies]
+hex = "0.4.3"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+

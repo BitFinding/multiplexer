@@ -1,0 +1,17 @@
+# Rust / Cargo build artifacts
+target/
+Cargo.lock
+
+# Solidity build artifacts
+contracts_output/
+
+# IDE specific files
+.idea/
+.vscode/
+
+# Environment variables
+.env
+
+# OS specific files
+.DS_Store
+Thumbs.db
