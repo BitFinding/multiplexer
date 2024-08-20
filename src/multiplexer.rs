@@ -1,4 +1,4 @@
-use alloy::primitives::Address;
+use alloy::primitives::{Address, U256};
 
 // Operation opcodes as constants
 pub const OP_SETDATA: u8 = 0x01;
@@ -33,13 +33,13 @@ impl SetData {
 }
 
 // Struct for the RESETDATA operation
-pub struct ResetData {
+pub struct ClearData {
     pub size: u16,
 }
 
-impl ResetData {
+impl ClearData {
     pub fn new(size: u16) -> Self {
-        ResetData { size }
+        ClearData { size }
     }
 
     pub fn encode(&self) -> Vec<u8> {
@@ -101,9 +101,10 @@ impl Call {
 // Struct for the CREATE operation
 #[derive(Default)]
 pub struct Create {
+    created_address: Address
 }
 impl Create {
-    pub fn new() -> Self { Self {} }
+    pub fn new(created_address: Address) -> Self { Self { created_address } }
 
     pub fn encode(&self) -> Vec<u8> {
         vec![OP_CREATE] // Opcode
@@ -159,7 +160,184 @@ impl ExtCodeCopy {
     }
 }
 
+#[derive(Clone, Debug)]
+struct SetValue {
+    value: U256
+}
+
+impl SetValue {
+    pub fn new(value: U256) -> Self {
+        SetValue { value }
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut encoded = Vec::new();
+        unimplemented!("OP_SETVALUE");
+        // encoded.push(OP_EXTCODECOPY);            // Opcode
+        // encoded.extend(&self.source);            // Source address
+        // encoded.extend(&self.offset.to_be_bytes()); // Offset
+        // encoded.extend(&self.size.to_be_bytes());   // Size
+        encoded
+    }
+}
+
+enum Action {
+    Call(Call),
+    SetData(SetData),
+    SetTarget(SetTarget),
+    SetValue(SetValue),
+    ClearData(ClearData),
+    Create(Create),
+}
+
+impl Action {
+    fn encode(&self) -> Vec<u8> {
+        match self {
+            Action::Call(c) => c.encode(),
+            Action::SetData(sd) => sd.encode(),
+            Action::SetTarget(st) => st.encode(),
+            Action::SetValue(sv) => sv.encode(),
+            Action::ClearData(cd) => cd.encode(),
+            Action::Create(c) => c.encode(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct FlowBuilder {
+    actions: Vec<Action>
+}
+
+impl FlowBuilder {
+    fn empty() -> Self {
+        Self::default()
+    }
+
+    fn set_target_op(&mut self, target: Address) {
+        self.actions.push(Action::SetTarget(SetTarget { target }));
+    }
+
+    fn set_value_op(&mut self, value: U256) {
+        self.actions.push(Action::SetValue(SetValue { value }));
+    }
+
+    fn set_data_op(&mut self, offset: u16, data: &[u8]) {
+        self.actions.push(Action::SetData(SetData { offset, data: data.to_owned() }))
+    }
+
+    fn set_cleardata_op(&mut self, size: u16) {
+        self.actions.push(Action::ClearData(ClearData { size }));
+    }
+
+    fn call_op(&mut self) {
+        self.actions.push(Action::Call(Call { }))
+    }
+
+    fn create_op(&mut self, created_address: Address) {
+        self.actions.push(Action::Create(Create { created_address }))
+    }
+
+    pub fn call(mut self, target: Address, data: &[u8], value: U256) -> Self {
+        assert!(data.len() < u16::MAX as usize, "datalen exceeds 0xffff");
+
+        self.set_target_op(target);
+        self.set_value_op(value);
+        self.set_cleardata_op(data.len() as u16);
+        self.set_data_op(0, data);
+        self.call_op();
+        self
+    }
+
+    pub fn delegatecall(mut self, target: Address, data: &[u8]) -> Self {
+        unimplemented!("delegatecall");
+        self
+    }
+
+    pub fn create(mut self, created_address: Address, data: &[u8], value: U256, ) -> Self {
+        self.set_value_op(value);
+        self.set_cleardata_op(data.len() as u16);
+        self.set_data_op(0, data);
+        self.create_op(created_address);
+        self
+    }
+
+    pub fn create_from_ext(mut self, origin: Address, patches: Vec<(u16, U256)>, value: U256) -> Self {
+        unimplemented!("create_from_ext");
+        self
+    }
+
+    fn peephole_opt(&mut self) {
+        // Optimize SetTarget and SetValues
+        let mut ops_to_remove = Vec::new();
+        let mut last_value = U256::ZERO;
+        let mut last_target = Address::ZERO;
+        let mut last_data: Vec<u8> = Vec::new();
+        // let mut last_clear_data = 0;
+
+        for (idx, action) in self.actions.iter().enumerate() {
+            let to_remove = match action {
+                Action::Call(_) => {
+                    last_value = U256::ZERO;
+                    false
+                },
+                Action::Create(Create { created_address }) => {
+                    last_target = *created_address;
+                    last_value = U256::ZERO;
+                    false
+                },
+                Action::SetTarget(SetTarget { target }) => {
+                    let res = last_target == *target;
+                    last_target = *target;
+                    res
+                },
+                Action::SetValue(SetValue { value }) => {
+                    let res = last_value == *value;
+                    last_value = *value;
+                    res
+                },
+                Action::ClearData(ClearData { size }) => {
+                    let res = last_data.len() == *size as usize;
+                    last_data = vec![0; *size as usize];
+                    res
+                },
+                Action::SetData(SetData { offset, data }) => {
+                    let offset_uz = *offset as usize;
+                    let mut new_data = last_data.clone();
+                    new_data.splice(offset_uz  .. offset_uz + data.len(), data.to_owned());
+                    let res = last_data == new_data;
+                    last_data = new_data;
+                    res
+                },
+                _ => false,
+            };
+            if to_remove {
+                ops_to_remove.push(idx);
+            }
+        }
+
+        for idx in ops_to_remove.into_iter().rev() {
+            self.actions.remove(idx);
+        }
+    }
+
+    pub fn build(mut self) -> Vec<u8> {
+        self.peephole_opt();
+        let mut res = Vec::new();
+        for action in self.actions {
+            res.extend(&action.encode())
+        }
+        res
+    }
+}
+
 fn main() {
+
+    let calldata = FlowBuilder::empty()
+        .create(Address::ZERO, &Vec::new(), U256::from(1))
+        .call(Address::ZERO, &vec![0, 1], U256::ZERO)
+        .build();
+    println!("Encoded calldata {:?}", calldata);
+
     // Example: Create a SETDATA operation
     let setdata_op = SetData::new(16, b"Some Data".to_vec());
     let encoded_setdata = setdata_op.encode();
