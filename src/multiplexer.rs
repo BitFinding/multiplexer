@@ -330,8 +330,8 @@ impl FlowBuilder {
     }
 }
 
-fn main() {
-
+#[test]
+fn test() {
     let calldata = FlowBuilder::empty()
         .create(Address::ZERO, &Vec::new(), U256::from(1))
         .call(Address::ZERO, &vec![0, 1], U256::ZERO)

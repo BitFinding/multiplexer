@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 alloy = "0.2.1"
 
-[[bin]]
+[lib]
 name = "multiplexer"
 path = "src/multiplexer.rs"
