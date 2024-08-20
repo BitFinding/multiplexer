@@ -38,11 +38,9 @@ contract ActionExecutor {
         CLEARDATA, 
         SETDATA, 
         SETADDR, 
-        CLRVALUE,
-        SETVALUE, 
+        SETVALUE,
         EXTCODECOPY, 
-        PATCH, 
-        CALL, 
+        CALL,
         CREATE, 
         DELEGATECALL
     }
@@ -81,8 +79,6 @@ contract ActionExecutor {
                 (target, offset) = _parseAddress(data, offset);
             } else if (op == Operation.SETVALUE) {
                 (value, offset) =  _parseUint256(data, offset);
-            } else if (op == Operation.CLRVALUE) {
-                value = 0;
             } else if (op == Operation.EXTCODECOPY) {
                 // address: 20-byte address of the contract to query.
                 // destOffset: byte offset in the memory where the result will be copied.
