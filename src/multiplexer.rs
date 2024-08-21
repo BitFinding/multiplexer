@@ -308,7 +308,7 @@ impl FlowBuilder {
                     last_data = new_data;
                     res
                 },
-                _ => false,
+                _ => false ,
             };
             if to_remove {
                 ops_to_remove.push(idx);
