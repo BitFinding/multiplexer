@@ -82,7 +82,7 @@ impl SetValue {
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::new();
         encoded.push(OP_SETVALUE); // Opcode
-        encoded.extend(&self.value.to_be_bytes()); // Value
+        encoded.extend(&self.value.to_be_bytes::<32>()); // Value
         encoded
     }
 }
@@ -265,10 +265,12 @@ impl FlowBuilder {
 
 #[test]
 fn test() {
+    let addr_a = Address::repeat_byte(0x41);
+    let addr_b = Address::repeat_byte(0x42);
     let calldata = FlowBuilder::empty()
-        .create(Address::ZERO, &Vec::new(), U256::from(1))
-        .call(Address::ZERO, &vec![0, 1], U256::ZERO)
-        .delegatecall(Address::ZERO, &vec![0, 2])
+        .create(Address::ZERO, "LALA".as_bytes(), U256::from(10))
+        .call(addr_a, &vec![98, 99], U256::ZERO)
+        .delegatecall(addr_b, &vec![70, 71])
         .build();
     println!("Encoded calldata {:?}", calldata);
 }
