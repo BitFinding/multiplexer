@@ -263,14 +263,50 @@ impl FlowBuilder {
     }
 }
 
-#[test]
-fn test() {
-    let addr_a = Address::repeat_byte(0x41);
-    let addr_b = Address::repeat_byte(0x42);
-    let calldata = FlowBuilder::empty()
-        .create(Address::ZERO, "LALA".as_bytes(), U256::from(10))
-        .call(addr_a, &vec![98, 99], U256::ZERO)
-        .delegatecall(addr_b, &vec![70, 71])
-        .build();
-    println!("Encoded calldata {:?}", calldata);
+
+#[cfg(test)]
+mod test{
+    use alloy::{primitives::{Address, U256}, providers::ProviderBuilder, rpc::types::TransactionRequest};
+    use crate::FlowBuilder;
+    
+    #[test]
+    fn test() {
+        let addr_a = Address::repeat_byte(0x41);
+        let addr_b = Address::repeat_byte(0x42);
+        let calldata = FlowBuilder::empty()
+            .create(Address::ZERO, "LALA".as_bytes(), U256::from(10))
+            .call(addr_a, &vec![98, 99], U256::ZERO)
+            .delegatecall(addr_b, &vec![70, 71])
+            .build();
+        println!("Encoded calldata {:?}", calldata);
+    }
+
+    // #[tokio::test]
+    // async fn test1() {
+    //     let provider = ProviderBuilder::new().on_anvil();
+
+    //     let alice = Address::repeat_byte(0x41);
+    //     let bob = Address::repeat_byte(0x42);
+    //     let chain_id = provider.get_chain_id();
+
+    //     provider.anvil_set_balance(alice, U256::from(1e18 as u64)).await.unwrap();
+
+    //     let tx = TransactionRequest::default()
+    //         .with_from(alice)
+    //         .with_to(bob)
+    //         .with_nonce(0)
+    //         .with_chain_id(chain_id)
+    //         .with_value(U256::from(100))
+    //         .with_gas_limit(21_000)
+    //         .with_max_priority_fee_per_gas(1_000_000_000)
+    //         .with_max_fee_per_gas(20_000_000_000);
+
+    //     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+
+    //     provider.evm_mine(None).await.unwrap();
+
+    //     let res = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    //     assert_eq!(res.from, alice);
+    //     assert_eq!(res.to, Some(bob));
+    // }
 }
