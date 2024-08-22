@@ -281,32 +281,32 @@ mod test{
         println!("Encoded calldata {:?}", calldata);
     }
 
-    // #[tokio::test]
-    // async fn test1() {
-    //     let provider = ProviderBuilder::new().on_anvil();
+    #[tokio::test]
+    async fn test1() {
+        let provider = ProviderBuilder::new().on_anvil();
 
-    //     let alice = Address::repeat_byte(0x41);
-    //     let bob = Address::repeat_byte(0x42);
-    //     let chain_id = provider.get_chain_id();
+        let alice = Address::repeat_byte(0x41);
+        let bob = Address::repeat_byte(0x42);
+        let chain_id = provider.get_chain_id();
 
-    //     provider.anvil_set_balance(alice, U256::from(1e18 as u64)).await.unwrap();
+        provider.anvil_set_balance(alice, U256::from(1e18 as u64)).await.unwrap();
 
-    //     let tx = TransactionRequest::default()
-    //         .with_from(alice)
-    //         .with_to(bob)
-    //         .with_nonce(0)
-    //         .with_chain_id(chain_id)
-    //         .with_value(U256::from(100))
-    //         .with_gas_limit(21_000)
-    //         .with_max_priority_fee_per_gas(1_000_000_000)
-    //         .with_max_fee_per_gas(20_000_000_000);
+        let tx = TransactionRequest::default()
+            .with_from(alice)
+            .with_to(bob)
+            .with_nonce(0)
+            .with_chain_id(chain_id)
+            .with_value(U256::from(100))
+            .with_gas_limit(21_000)
+            .with_max_priority_fee_per_gas(1_000_000_000)
+            .with_max_fee_per_gas(20_000_000_000);
 
-    //     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+        let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
-    //     provider.evm_mine(None).await.unwrap();
+        provider.evm_mine(None).await.unwrap();
 
-    //     let res = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
-    //     assert_eq!(res.from, alice);
-    //     assert_eq!(res.to, Some(bob));
-    // }
+        let res = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+        assert_eq!(res.from, alice);
+        assert_eq!(res.to, Some(bob));
+    }
 }
