@@ -469,7 +469,37 @@ mod test {
         }
  
         let account_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!( account_balance, U256::ZERO);  // executor shoul shave sent the value to weth9
+        assert_eq!( account_balance, U256::ZERO);  // executor shoud shave sent the value to weth9
+
+
+        
+        // WETH withdraw!!
+
+        let two_eth = U256::from(2e18 as u64);    
+        let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
+        withdraw_calldata.extend(two_eth.to_be_bytes::<32>().iter());
+        let fb = FlowBuilder::empty()
+                .call(weth9, &withdraw_calldata, U256::ZERO);  // this should send 2 eth to weth and assign the same weth value to the executor
+
+        let tx = TransactionRequest::default()
+            .with_from(wallet)
+            .with_to(executor)
+            .with_value(two_eth)
+            .with_input(fb.build());
+
+        let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+
+        provider.evm_mine(None).await.unwrap();
+
+        let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+        for log in receipt.inner.as_receipt().unwrap().logs.iter(){
+            println!("TX receipt {:?}", &log.data().data);
+            //println!("TX receipt {}", str::from_utf8(&log.data().data[64..]).unwrap());
+        }
+ 
+        let account_balance = provider.get_balance(executor).await.unwrap();
+        assert_eq!( account_balance, two_eth);  // executor shoud shave sent the value to weth9
+
 
 
 
