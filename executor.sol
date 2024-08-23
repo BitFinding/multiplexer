@@ -2,13 +2,19 @@
 pragma solidity ^0.8.0;
 
 contract ActionExecutor {
+    event LOG(string);
+    event LOGBYTES(bytes);
+    event LOGADDR(address);
+    event LOGBOOL(bool);
+
     address public owner;
 
     constructor() payable { owner = msg.sender; }
 
     receive() external payable {}
 
-    fallback() external payable { 
+    fallback() external payable {
+        emit LOG("CALLBACK");
         require(msg.sender == owner); // Ownership check
         _executeActions(msg.data);
     }
@@ -25,6 +31,8 @@ contract ActionExecutor {
     }
 
     function _executeActions(bytes memory data) internal {
+        emit LOG("EXEACTIONS");
+
         uint256 offset = 0;
         address target;
         uint256 value;
@@ -36,11 +44,15 @@ contract ActionExecutor {
                 offset += 1;
 
                 if (op == Operation.CLEARDATA) {
+                    emit LOG("CLEARDATA");
+
                     uint256 size;
                     (size, offset) = _parseUint16(data, offset);
                     txData = new bytes(size);
                 } 
                 else if (op == Operation.SETDATA) {
+                    emit LOG("SETDATA");
+
                     uint256 data_offset;
                     uint256 n;
                     (data_offset, offset) = _parseUint16(data, offset);
@@ -54,10 +66,16 @@ contract ActionExecutor {
                         }
                     }
                 } else if (op == Operation.SETADDR) {
+                    emit LOG("SETADDR");
+
                     (target, offset) = _parseAddress(data, offset);
                 } else if (op == Operation.SETVALUE) {
+                    emit LOG("SETVALUE");
+
                     (value, offset) =  _parseUint256(data, offset);
                 } else if (op == Operation.EXTCODECOPY) {
+                    emit LOG("EXTCODECOPY");
+
                     // address: 20-byte address of the contract to query.
                     // destOffset: byte offset in the memory where the result will be copied.
                     // offset: byte offset in the code to copy.
@@ -74,15 +92,24 @@ contract ActionExecutor {
                         extcodecopy(code_contract, add(txData, add(data_offset, 0x20)), code_offset, size)
                     }
                 } else if (op == Operation.CALL) {
+                    emit LOG("CALL");
+                    emit LOGADDR(target);
+                    emit LOGBYTES(txData);
                     bool success;
                     (success, ) = target.call{value: value}(txData);
+                    emit LOGBOOL(success);
+
                     value = 0;
                 } else if (op == Operation.CREATE) {
+                    emit LOG("CREATE");
+
                     assembly {
                         target := create(value, add(txData, 0x20), mload(txData))
                     }
                     value = 0;
                 } else if (op == Operation.DELEGATECALL) {
+                    emit LOG("DELEGATE");
+
                     bool success;
                     (success, ) = target.delegatecall(txData);
                 }
@@ -93,7 +120,7 @@ contract ActionExecutor {
     function _parseAddress(bytes memory data, uint256 offset) internal pure returns (address, uint256) {
         uint256 addr;
         assembly {
-            addr := mload(add(data, offset))
+            addr := mload(add(add(data, offset), 0x20))
         }
         addr = addr >> 96;
         return (address(uint160(addr)), offset + 20);
@@ -102,7 +129,7 @@ contract ActionExecutor {
     function _parseUint256(bytes memory data, uint256 offset) internal pure returns (uint256, uint256) {
         uint256 value;
         assembly {
-            value := mload(add(data, offset)) 
+            value := mload(add(add(data, offset),0x20)) 
         }
         return (value, offset + 32);
     }
