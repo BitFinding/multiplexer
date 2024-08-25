@@ -632,7 +632,6 @@ mod test {
             .with_to(executor)
             .with_value(U256::ZERO)
             .with_input(fb.build());
-        println!("X {:?}", tx);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -643,7 +642,7 @@ mod test {
             .await
             .unwrap()
             .unwrap();
-        println!("RECO {:?}", receipt);
+
         for log in receipt.inner.as_receipt().unwrap().logs.iter() {
             //println!("TX receipt {}", hex::decode(hex::encode(&log.data().data[64..])).unwrap());
             if &log.data().data.len() > &64 {
@@ -658,5 +657,12 @@ mod test {
 
         let account_balance = provider.get_balance(executor).await.unwrap();
         assert_eq!(account_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+
+
+        // Test ownership in the created proxy
+        // wallet -> executor -> proxy :check:
+        // bob -> executor -> ?? :fail:
+        // bob -> proxy  :fail:
+         
     }
 }
