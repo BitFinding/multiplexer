@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract ActionExecutor {
+contract executor {
     event LOG(string);
     event LOGBYTES(bytes);
     event LOGADDR(address);
@@ -84,13 +84,13 @@ contract ActionExecutor {
                             mstore(add(add(add(txData, 0x20), data_offset), mul(i, 0x20)), value_i)
                         }
                     }
-                    for (i=(data_size/32)*32; i < data_size; i++) {
+                    for (i= (data_size/32) * 32; i < data_size; i++) {
                         emit LOG("ITERATION: ");
                         emit LOGUINT(i);
                         emit LOGUINT(offset);
                         emit LOGUINT(0xffffffff);
 
-                        txData[data_offset + ((data_size/32) * 32) + i] = data[offset];
+                        txData[data_offset + i] = data[offset];
 
                         emit LOGUINT(data_offset + ((data_size/32) * 32) + i);
                         emit LOGUINT(offset);
@@ -143,10 +143,10 @@ contract ActionExecutor {
                     value = 0;
                 } else if (op == Operation.CREATE) {
                     emit LOG("CREATE");
-                    assembly {
-                        target := create(value, add(txData, 0x20), mload(txData))
-                    }
-                    emit LOGADDR(target);
+                    // assembly {
+                    //     target := create(value, add(txData, 0x20), mload(txData))
+                    // }
+                    // emit LOGADDR(target);
                     value = 0;
                 } else if (op == Operation.DELEGATECALL) {
                     emit LOG("DELEGATE");

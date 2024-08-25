@@ -2,6 +2,7 @@
 name = "multiplexer"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"  # You should add this line
 
 [dependencies]
 alloy = { version="0.2.1", features = ["full", "node-bindings"] }
@@ -10,3 +11,4 @@ tokio = "1.39.3"
 [lib]
 name = "multiplexer"
 path = "src/multiplexer.rs"
+

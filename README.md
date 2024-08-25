@@ -1,3 +1,8 @@
+# Test
+```
+$ ETH_RPC_URL=http://192.168.1.249:8545  cargo test
+```
+
 # ActionExecutor Contract Documentation
 
 The `ActionExecutor` contract is designed to facilitate the execution of multiple operations sequentially in a single transaction.
