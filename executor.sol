@@ -6,6 +6,8 @@ contract ActionExecutor {
     event LOGBYTES(bytes);
     event LOGADDR(address);
     event LOGBOOL(bool);
+    event LOGUINT(uint256);
+
 
     address public owner;
 
@@ -45,32 +47,69 @@ contract ActionExecutor {
 
                 if (op == Operation.CLEARDATA) {
                     emit LOG("CLEARDATA");
+                    emit LOGUINT(offset);
+
 
                     uint256 size;
                     (size, offset) = _parseUint16(data, offset);
+                    emit LOGUINT(size);
+
                     txData = new bytes(size);
                 } 
                 else if (op == Operation.SETDATA) {
                     emit LOG("SETDATA");
+                    emit LOG("calldata_offset: ");
+
+                    emit LOGUINT(offset);
+
 
                     uint256 data_offset;
-                    uint256 n;
+                    uint256 data_size;
                     (data_offset, offset) = _parseUint16(data, offset);
-                    (n, offset) = _parseUint16(data, offset);               
-                    
-                    for (uint256 i = 0; i < n; i++) {
+                    (data_size, offset) = _parseUint16(data, offset);               
+                    emit LOG("data_offset: ");
+                    emit LOGUINT(data_offset);
+                    emit LOG("data_size: ");
+                    emit LOGUINT(data_size);
+
+                    uint256 i;
+                    for (i = 0; i < data_size/32; i++) {
                         uint256 value_i;
                         (value_i, offset) = _parseUint256(data, offset);
+                        emit LOG("ITERATION: ");
+                        emit LOGUINT(i);
+                        emit LOGUINT(offset);
+                        emit LOGUINT(value_i);
                         assembly{
-                            mstore(add(add(txData, 0x20), mul(i, 0x20)), value_i)
+                            mstore(add(add(add(txData, 0x20), data_offset), mul(i, 0x20)), value_i)
                         }
                     }
+                    for (i=(data_size/32)*32; i < data_size; i++) {
+                        emit LOG("ITERATION: ");
+                        emit LOGUINT(i);
+                        emit LOGUINT(offset);
+                        emit LOGUINT(0xffffffff);
+
+                        txData[data_offset + ((data_size/32) * 32) + i] = data[offset];
+
+                        emit LOGUINT(data_offset + ((data_size/32) * 32) + i);
+                        emit LOGUINT(offset);
+
+                        offset+=1;
+                    }
+                    emit LOGUINT(offset);
+                    emit LOG("SETDATA2");
+
                 } else if (op == Operation.SETADDR) {
                     emit LOG("SETADDR");
+                    emit LOGUINT(offset);
+
 
                     (target, offset) = _parseAddress(data, offset);
                 } else if (op == Operation.SETVALUE) {
                     emit LOG("SETVALUE");
+                    emit LOGUINT(offset);
+
 
                     (value, offset) =  _parseUint256(data, offset);
                 } else if (op == Operation.EXTCODECOPY) {
@@ -93,6 +132,8 @@ contract ActionExecutor {
                     }
                 } else if (op == Operation.CALL) {
                     emit LOG("CALL");
+                    emit LOGUINT(offset);
+
                     emit LOGADDR(target);
                     emit LOGBYTES(txData);
                     bool success;
@@ -102,10 +143,10 @@ contract ActionExecutor {
                     value = 0;
                 } else if (op == Operation.CREATE) {
                     emit LOG("CREATE");
-
                     assembly {
                         target := create(value, add(txData, 0x20), mload(txData))
                     }
+                    emit LOGADDR(target);
                     value = 0;
                 } else if (op == Operation.DELEGATECALL) {
                     emit LOG("DELEGATE");
