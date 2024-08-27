@@ -15,6 +15,4 @@ fn main() {
     if !status_executor.success() || !status_proxy.success() {
         println!("cargo::warning=Can NOT compile the solidity contracts. Make sure you have a solc compiler in the path.");
     }
-
-
 }

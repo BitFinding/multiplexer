@@ -143,10 +143,14 @@ contract executor {
                     value = 0;
                 } else if (op == Operation.CREATE) {
                     emit LOG("CREATE");
-                    // assembly {
-                    //     target := create(value, add(txData, 0x20), mload(txData))
-                    // }
-                    // emit LOGADDR(target);
+                    emit LOG(string(txData));
+                    emit LOGUINT(value);
+                    
+                    assembly {
+                        target := create(value, add(txData, 0x20), mload(txData))
+                    }
+                    emit LOG("ADDR..");
+                    emit LOGADDR(target);
                     value = 0;
                 } else if (op == Operation.DELEGATECALL) {
                     emit LOG("DELEGATE");
