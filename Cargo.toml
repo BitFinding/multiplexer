@@ -8,6 +8,9 @@ build = "build.rs"  # You should add this line
 alloy = { version="0.2.1", features = ["full", "node-bindings"] }
 tokio = "1.39.3"
 
+[build-dependencies]
+hex = "0.4.3"
+
 [lib]
 name = "multiplexer"
 path = "src/multiplexer.rs"

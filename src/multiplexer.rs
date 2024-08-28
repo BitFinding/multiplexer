@@ -3,6 +3,10 @@ use alloy::{
     primitives::{address, Address, U256},
 };
 
+// Contract bytecode
+const EXECUTOR_INIT: &[u8] = include_bytes!("../contracts/executor.bin");
+const DELEGATE_PROXY_INIT: &[u8] = include_bytes!("../contracts/proxy.bin");
+
 // Operation opcodes as constants
 pub const OP_CLEARDATA: u8 = 0x00;
 pub const OP_SETDATA: u8 = 0x01;
@@ -286,7 +290,7 @@ impl FlowBuilder {
 
 #[cfg(test)]
 mod test {
-    use crate::FlowBuilder;
+    use crate::{FlowBuilder, DELEGATE_PROXY_INIT, EXECUTOR_INIT};
     use alloy::{
         hex,
         network::TransactionBuilder,
@@ -300,9 +304,6 @@ mod test {
         transports::http::{Client, Http},
     };
     use core::str;
-
-    const EXECUTOR_INIT: &[u8] = include_bytes!("../contracts/executor.bin");
-    const DELEGATE_PROXY_INIT: &[u8] = include_bytes!("../contracts/proxy.bin");
 
     fn get_provider() -> AnvilProvider<RootProvider<Http<Client>>, Http<Client>> {
         // Create a provider.
@@ -368,7 +369,7 @@ mod test {
 
         let tx = TransactionRequest::default()
             .with_from(wallet)
-            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -421,7 +422,7 @@ mod test {
 
         let tx = TransactionRequest::default()
             .with_from(wallet)
-            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -486,7 +487,7 @@ mod test {
         // Make the Executor contract (wallet is the owner)
         let tx = TransactionRequest::default()
             .with_from(wallet)
-            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -628,7 +629,7 @@ mod test {
         // Make the Executor contract (wallet is the owner)
         let tx = TransactionRequest::default()
             .with_from(wallet)
-            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -641,10 +642,10 @@ mod test {
         let executor = res.contract_address.unwrap();
 
         // Create dellegate proxy
-        // let mut calldata = hex::decode(DELEGATE_PROXY_INIT).unwrap();
+        // let mut calldata = DELEGATE_PROXY_INIT;
         // calldata.extend(hex!("00").repeat(12));
         // calldata.extend(executor.as_slice());
-        let mut calldata = hex::decode(DELEGATE_PROXY_INIT).unwrap().to_vec();
+        let mut calldata = DELEGATE_PROXY_INIT.to_vec();
         calldata.extend(
             IProxy::constructorCall {
                 _target: executor,
@@ -831,7 +832,7 @@ mod test {
         // Make the Executor contract (wallet is the owner)
         let tx = TransactionRequest::default()
             .with_from(wallet)
-            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -847,7 +848,7 @@ mod test {
         // Make the Proxy(Executor) contract (wallet is the owner)
         // Link the proxy to the executor but do not use the delegatecall in the constructor
 
-        let mut deploy_proxy_executor = hex::decode(DELEGATE_PROXY_INIT).unwrap().to_vec();
+        let mut deploy_proxy_executor = DELEGATE_PROXY_INIT.to_vec();
         deploy_proxy_executor.extend(
             IProxy::constructorCall {
                 _target: executor,
@@ -999,7 +1000,7 @@ mod test {
         // Make the Executor contract (wallet is the owner)
         let tx = TransactionRequest::default()
             .with_from(wallet)
-            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();

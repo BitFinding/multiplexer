@@ -2,13 +2,6 @@
 pragma solidity ^0.8.0;
 
 contract executor {
-    event LOG(string);
-    event LOGBYTES(bytes);
-    event LOGADDR(address);
-    event LOGBOOL(bool);
-    event LOGUINT(uint256);
-
-
     address public owner;
 
     constructor() payable { owner = msg.sender; }
@@ -16,7 +9,6 @@ contract executor {
     receive() external payable {}
 
     fallback() external payable {
-        emit LOG("CALLBACK");
         require(msg.sender == owner); // Ownership check
         _executeActions(msg.data);
     }
@@ -33,8 +25,6 @@ contract executor {
     }
 
     function _executeActions(bytes memory data) internal {
-        emit LOG("EXEACTIONS");
-
         uint256 offset = 0;
         address target;
         uint256 value;
@@ -46,75 +36,32 @@ contract executor {
                 offset += 1;
 
                 if (op == Operation.CLEARDATA) {
-                    emit LOG("CLEARDATA");
-                    emit LOGUINT(offset);
-
-
                     uint256 size;
                     (size, offset) = _parseUint16(data, offset);
-                    emit LOGUINT(size);
-
                     txData = new bytes(size);
                 } 
                 else if (op == Operation.SETDATA) {
-                    emit LOG("SETDATA");
-                    emit LOG("calldata_offset: ");
-
-                    emit LOGUINT(offset);
-
-
                     uint256 data_offset;
                     uint256 data_size;
                     (data_offset, offset) = _parseUint16(data, offset);
                     (data_size, offset) = _parseUint16(data, offset);               
-                    emit LOG("data_offset: ");
-                    emit LOGUINT(data_offset);
-                    emit LOG("data_size: ");
-                    emit LOGUINT(data_size);
-
                     uint256 i;
                     for (i = 0; i < data_size/32; i++) {
                         uint256 value_i;
                         (value_i, offset) = _parseUint256(data, offset);
-                        emit LOG("ITERATION: ");
-                        emit LOGUINT(i);
-                        emit LOGUINT(offset);
-                        emit LOGUINT(value_i);
                         assembly{
                             mstore(add(add(add(txData, 0x20), data_offset), mul(i, 0x20)), value_i)
                         }
                     }
                     for (i= (data_size/32) * 32; i < data_size; i++) {
-                        emit LOG("ITERATION: ");
-                        emit LOGUINT(i);
-                        emit LOGUINT(offset);
-                        emit LOGUINT(0xffffffff);
-
                         txData[data_offset + i] = data[offset];
-
-                        emit LOGUINT(data_offset + ((data_size/32) * 32) + i);
-                        emit LOGUINT(offset);
-
                         offset+=1;
                     }
-                    emit LOGUINT(offset);
-                    emit LOG("SETDATA2");
-
                 } else if (op == Operation.SETADDR) {
-                    emit LOG("SETADDR");
-                    emit LOGUINT(offset);
-
-
                     (target, offset) = _parseAddress(data, offset);
                 } else if (op == Operation.SETVALUE) {
-                    emit LOG("SETVALUE");
-                    emit LOGUINT(offset);
-
-
                     (value, offset) =  _parseUint256(data, offset);
                 } else if (op == Operation.EXTCODECOPY) {
-                    emit LOG("EXTCODECOPY");
-
                     // address: 20-byte address of the contract to query.
                     // destOffset: byte offset in the memory where the result will be copied.
                     // offset: byte offset in the code to copy.
@@ -131,30 +78,15 @@ contract executor {
                         extcodecopy(code_contract, add(txData, add(data_offset, 0x20)), code_offset, size)
                     }
                 } else if (op == Operation.CALL) {
-                    emit LOG("CALL");
-                    emit LOGUINT(offset);
-
-                    emit LOGADDR(target);
-                    emit LOGBYTES(txData);
                     bool success;
                     (success, ) = target.call{value: value}(txData);
-                    emit LOGBOOL(success);
-
                     value = 0;
-                } else if (op == Operation.CREATE) {
-                    emit LOG("CREATE");
-                    emit LOG(string(txData));
-                    emit LOGUINT(value);
-                    
+                } else if (op == Operation.CREATE) {                    
                     assembly {
                         target := create(value, add(txData, 0x20), mload(txData))
                     }
-                    emit LOG("ADDR..");
-                    emit LOGADDR(target);
                     value = 0;
                 } else if (op == Operation.DELEGATECALL) {
-                    emit LOG("DELEGATE");
-
                     bool success;
                     (success, ) = target.delegatecall(txData);
                 }
