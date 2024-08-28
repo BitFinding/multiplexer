@@ -7,7 +7,7 @@ use alloy::{
     providers::{ext::AnvilApi, layers::AnvilProvider, Provider, ProviderBuilder, RootProvider},
     rpc::types::TransactionRequest,
     sol,
-    sol_types::SolConstructor,
+    sol_types::{SolCall, SolConstructor},
     transports::http::{Client, Http},
 };
 use core::str;
@@ -29,7 +29,6 @@ fn get_provider() -> AnvilProvider<RootProvider<Http<Client>>, Http<Client>> {
 
 sol! {
     #[sol(rpc)]
-
     interface IERC20 {
         event Transfer(address indexed from, address indexed to, uint256 value);
         event Approval(address indexed owner, address indexed spender, uint256 value);
@@ -44,9 +43,17 @@ sol! {
 
 sol! {
     #[sol(rpc)]
-
     contract IProxy {
         constructor(address _target, bytes memory constructorData) payable;
+    }
+}
+
+sol! {
+    #[sol(rpc)]
+    interface IWETH {
+        function deposit() external payable;
+        function transfer(address to, uint value) external returns (bool);
+        function withdraw(uint amount) external;
     }
 }
 
@@ -242,11 +249,7 @@ async fn test_wallet_can_proxy_call() {
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
     assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
-    // WETH withdraw!!
-    // TODO try to USE sol!() like the balanceOf IERC20 example instead to encode the withdraw(...) funcid
-    let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
-    withdraw_calldata.extend(TWO_ETH.to_be_bytes::<32>().iter());
-
+    let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
     let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO); // this should send 2 eth to weth and assign the same weth value to the executor
 
     let tx = TransactionRequest::default()
@@ -390,11 +393,7 @@ async fn test_wallet_can_proxy_create() {
     // Test ownership in the created proxy
     // WALLET -> executor -> proxy mint some weth
 
-    // WETH withdraw!!
-    // TODO try to USE sol!() like the balanceOf IERC20 example instead to encode the withdraw(...) funcid
-    let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
-    withdraw_calldata.extend(TWO_ETH.to_be_bytes::<32>().iter());
-
+    let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
     let multiplexed_withdraw_calldata = FlowBuilder::empty()
         .call(WETH9, &withdraw_calldata, U256::ZERO)
         .build(true); // multiplexed withdraw from weth
@@ -567,9 +566,7 @@ async fn test_wallet_can_proxy_create_ultimate() {
     ////////////////////////////////////////////////////////////
     // Whithdraw weth from the proxy account
     // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
-    let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
-    withdraw_calldata.extend(TWO_ETH.to_be_bytes::<32>().iter());
-
+    let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
     let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO);
 
     let tx = TransactionRequest::default()
