@@ -206,13 +206,12 @@ impl FlowBuilder {
         Self::default()
     }
 
+    /// A simple optimizer that will remove redundant sets
     fn peephole_opt(&mut self) {
-        // Optimize SetTarget and SetValues
         let mut ops_to_remove = Vec::new();
         let mut last_value = U256::ZERO;
         let mut last_target = Address::ZERO;
         let mut last_data: Vec<u8> = Vec::new();
-        // let mut last_clear_data = 0;
 
         for (idx, action) in self.actions.iter().enumerate() {
             let to_remove = match action {
@@ -260,22 +259,22 @@ impl FlowBuilder {
         }
     }
 
-    fn set_extcodecopy_op(mut self, source: Address, data_offset: u16, code_offset: u16, size: u16) -> Self {
+    pub fn set_extcodecopy_op(mut self, source: Address, data_offset: u16, code_offset: u16, size: u16) -> Self {
         self.actions.push(Action::ExtCodeCopy(ExtCodeCopy{ source, data_offset, code_offset, size }));
         self
     }
 
-    fn set_addr_op(mut self, addr: Address) -> Self {
+    pub fn set_addr_op(mut self, addr: Address) -> Self {
         self.actions.push(Action::SetAddr(SetAddr { addr }));
         self
     }
 
-    fn set_value_op(mut self, value: U256) -> Self {
+    pub fn set_value_op(mut self, value: U256) -> Self {
         self.actions.push(Action::SetValue(SetValue { value }));
         self
     }
 
-    fn set_data_op(mut self, offset: u16, data: &[u8]) -> Self {
+    pub fn set_data_op(mut self, offset: u16, data: &[u8]) -> Self {
         self.actions.push(Action::SetData(SetData {
             offset,
             data: data.to_owned(),
@@ -283,23 +282,23 @@ impl FlowBuilder {
         self
     }
 
-    fn set_cleardata_op(mut self, size: u16) -> Self {
+    pub fn set_cleardata_op(mut self, size: u16) -> Self {
         self.actions.push(Action::ClearData(ClearData { size }));
         self
     }
 
-    fn call_op(mut self) -> Self {
+    pub fn call_op(mut self) -> Self {
         self.actions.push(Action::Call(Call::new()));
         self
     }
 
-    fn create_op(mut self, created_address: Address) -> Self {
+    pub fn create_op(mut self, created_address: Address) -> Self {
         self.actions
             .push(Action::Create(Create { created_address }));
         self
     }
 
-    fn delegatecall_op(mut self) -> Self {
+    pub fn delegatecall_op(mut self) -> Self {
         self.actions.push(Action::DelegateCall(DelegateCall::new()));
         self
     }
@@ -328,9 +327,11 @@ impl FlowBuilder {
             .create_op(created_address)
     }
 
-    pub fn build(mut self) -> Vec<u8> {
+    pub fn build(mut self, enable_opt: bool) -> Vec<u8> {
         let mut res = Vec::new();
-        self.peephole_opt();
+        if enable_opt {
+            self.peephole_opt();
+        }
         for action in self.actions {
             res.extend(&action.encode());
         }
@@ -396,7 +397,7 @@ mod test {
             .create(Address::ZERO, "LALA".as_bytes(), U256::from(10))
             .call(addr_a, &vec![98, 99], U256::ZERO)
             .delegatecall(addr_b, &vec![70, 71])
-            .build();
+            .build(true);
         assert_eq!(calldata, hex!("03000000000000000000000000000000000000000000000000000000000000000a00000401000000044c414c410602414141414141414141414141414141414141414100000201000000026263050242424242424242424242424242424242424242420100000002464707"));
     }
 
@@ -426,12 +427,13 @@ mod test {
 
         provider.evm_mine(None).await.unwrap();
 
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let executor_wallet = res.contract_address.unwrap();
+        assert!(receipt.status());
+        let executor_wallet = receipt.contract_address.unwrap();
 
         // Executor address is deterministic because we use always same wallet and nonce.
         assert_eq!(
@@ -449,9 +451,9 @@ mod test {
 
         provider.evm_mine(None).await.unwrap();
 
-        let res = provider.get_transaction_receipt(tx_hash).await.unwrap();
+        let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap();
 
-        assert!(res.is_none()); // Tx can not be send from bob
+        assert!(receipt.is_none()); // Tx can not be send from bob
     }
 
     #[tokio::test]
@@ -478,12 +480,12 @@ mod test {
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
 
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let executor_wallet = res.contract_address.unwrap();
+        let executor_wallet = receipt.contract_address.unwrap();
         // Executor address is deterministic because we use always same wallet and nonce.
         assert_eq!(
             address!("c088f75b5733d097f266010c1502399a53bdfdbd"),
@@ -500,9 +502,9 @@ mod test {
 
         provider.evm_mine(None).await.unwrap();
 
-        let res = provider.get_transaction_receipt(tx_hash).await.unwrap();
+        let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap();
 
-        assert!(res.is_some()); // Tx succeed from wallet
+        assert!(receipt.is_some()); // Tx succeed from wallet
 
         let account_balance = provider.get_balance(executor_wallet).await.unwrap();
         assert_eq!(account_balance, budget); // executor has the money sent in empty tx
@@ -542,12 +544,13 @@ mod test {
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let executor = res.contract_address.unwrap();
+        assert!(receipt.status());
+        let executor = receipt.contract_address.unwrap();
 
         // 0 eth
         // 0 weth
@@ -568,7 +571,7 @@ mod test {
             .with_to(executor)
             .with_nonce(1)
             .with_value(two_eth)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -580,18 +583,7 @@ mod test {
             .unwrap()
             .unwrap();
 
-        //assert!(receipt.status());
-        for log in receipt.inner.as_receipt().unwrap().logs.iter() {
-            //println!("TX receipt {}", hex::decode(hex::encode(&log.data().data[64..])).unwrap());
-            if &log.data().data.len() > &64 {
-                println!(
-                    "TX receipt {}",
-                    str::from_utf8(&log.data().data[64..]).unwrap()
-                );
-            } else {
-                println!("TX receipt {}", &log.data().data);
-            }
-        }
+        assert!(receipt.status());
 
         // 0 eth
         // 2 weth
@@ -613,7 +605,7 @@ mod test {
             .with_from(wallet)
             .with_to(executor)
             .with_value(U256::ZERO)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         println!("TX: {:?}", tx);
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -626,20 +618,7 @@ mod test {
             .unwrap()
             .unwrap();
 
-        println!("R: {:?}", receipt);
-
-        //assert!(receipt.status());
-        for log in receipt.inner.as_receipt().unwrap().logs.iter() {
-            //println!("TX receipt {}", hex::decode(hex::encode(&log.data().data[64..])).unwrap());
-            if &log.data().data.len() > &64 {
-                println!(
-                    "TX receipt {}",
-                    str::from_utf8(&log.data().data[64..]).unwrap_or("default")
-                );
-            } else {
-                println!("TX receipt {}", &log.data().data);
-            }
-        }
+        assert!(receipt.status());
 
         // 2 eth
         // 0 weth
@@ -684,12 +663,13 @@ mod test {
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let executor = res.contract_address.unwrap();
+        assert!(receipt.status());
+        let executor = receipt.contract_address.unwrap();
 
         // Create dellegate proxy
         // let mut calldata = DELEGATE_PROXY_INIT;
@@ -708,7 +688,7 @@ mod test {
             .create(executor.create(1), &calldata, U256::ZERO)
             .call(
                 executor.create(1),
-                &FlowBuilder::empty().call(weth9, &vec![], twoeth).build(),
+                &FlowBuilder::empty().call(weth9, &vec![], twoeth).build(true),
                 twoeth,
             );
 
@@ -716,7 +696,7 @@ mod test {
             .with_from(wallet)
             .with_to(executor)
             .with_value(twoeth)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -728,18 +708,7 @@ mod test {
             .unwrap()
             .unwrap();
 
-        for log in receipt.inner.as_receipt().unwrap().logs.iter() {
-            //println!("TX receipt {}", hex::decode(hex::encode(&log.data().data[64..])).unwrap());
-            if &log.data().data.len() > &64 {
-                // println!(
-                //     "TX receipt {}",
-                //     str::from_utf8(&log.data().data[64..]).unwrap()
-                // );
-                println!("TX receipt {}", &log.data().data);
-            } else {
-                println!("TX receipt {}", &log.data().data);
-            }
-        }
+        assert!(receipt.status());
 
         let account_balance = provider.get_balance(executor).await.unwrap();
         assert_eq!(account_balance, U256::ZERO); // executor shoud shave sent the value to weth9
@@ -784,7 +753,7 @@ mod test {
 
         let multiplexed_withdraw_calldata = FlowBuilder::empty()
             .call(weth9, &withdraw_calldata, U256::ZERO)
-            .build(); // multiplexed withdraw from weth
+            .build(true); // multiplexed withdraw from weth
 
         let fb = FlowBuilder::empty().call(
             executor.create(1),
@@ -796,7 +765,7 @@ mod test {
             .with_from(wallet)
             .with_to(executor)
             .with_value(twoeth)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -808,18 +777,7 @@ mod test {
             .unwrap()
             .unwrap();
 
-        for log in receipt.inner.as_receipt().unwrap().logs.iter() {
-            //println!("TX receipt {}", hex::decode(hex::encode(&log.data().data[64..])).unwrap());
-            if &log.data().data.len() > &64 {
-                // println!(
-                //     "TX receipt {}",
-                //     str::from_utf8(&log.data().data[64..]).unwrap()
-                // );
-                println!("TX receipt {}", &log.data().data);
-            } else {
-                println!("TX receipt {}", &log.data().data);
-            }
-        }
+        assert!(receipt.status());
 
         // Executor has
         // 2 eth
@@ -887,12 +845,14 @@ mod test {
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let executor = res.contract_address.unwrap();
+
+        assert!(receipt.status());
+        let executor = receipt.contract_address.unwrap();
 
         ////////////////////////////////////////////////////////////
         // Make the Proxy(Executor) contract (wallet is the owner)
@@ -914,16 +874,17 @@ mod test {
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let proxy_executor = res.contract_address.unwrap();
+        assert!(receipt.status());
+        let proxy_executor = receipt.contract_address.unwrap();
         assert_eq!(proxy_executor, wallet.create(1));
 
         ////////////////////////////////////////////////////////////
-        /// Deposit weth in the proxy account
+        // Deposit weth in the proxy account
         // Use the deployed Proxy(Executor) contract (wallet is the owner) to deposit weth
         let deposit_calldata = [];
         let fb = FlowBuilder::empty().call(weth9, &deposit_calldata, twoeth);
@@ -932,17 +893,17 @@ mod test {
             .with_from(wallet)
             .with_to(proxy_executor)
             .with_value(twoeth)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
 
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        assert!(res.status());
+        assert!(receipt.status());
 
         // Executor account has no assets
         // 0 eth
@@ -966,7 +927,7 @@ mod test {
         assert_eq!(proxy_executor_weth_balance, twoeth); // executor should have 2 eth worth of weth
 
         ////////////////////////////////////////////////////////////
-        /// Whithdraw weth from the proxy account
+        // Whithdraw weth from the proxy account
         // Use the deployed Proxy(Executor) contract (wallet is the owner) to deposit weth
         let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
         withdraw_calldata.extend(twoeth.to_be_bytes::<32>().iter());
@@ -977,17 +938,17 @@ mod test {
             .with_from(wallet)
             .with_to(proxy_executor)
             .with_value(U256::ZERO)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
 
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        assert!(res.status());
+        assert!(receipt.status());
 
         // Executor account has no assets
         // 0 eth
@@ -1055,12 +1016,13 @@ mod test {
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let executor = res.contract_address.unwrap();
+        assert!(receipt.status());
+        let executor = receipt.contract_address.unwrap();
 
         // create normal flipper account.
         let tx = TransactionRequest::default()
@@ -1069,12 +1031,13 @@ mod test {
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
-        let res = provider
+        let receipt = provider
             .get_transaction_receipt(tx_hash)
             .await
             .unwrap()
             .unwrap();
-        let flipper = res.contract_address.unwrap();
+        assert!(receipt.status());
+        let flipper = receipt.contract_address.unwrap();
 
         let created_flipper_runtime = provider.get_code_at(flipper).await.unwrap();
 
@@ -1091,7 +1054,7 @@ mod test {
         let tx = TransactionRequest::default()
             .with_from(wallet)
             .with_to(executor)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
@@ -1100,6 +1063,7 @@ mod test {
             .await
             .unwrap()
             .unwrap();
+        assert!(receipt.status());
         println!("NO excodecopy gas used {:?}", receipt.gas_used);
 
         assert_eq!(
@@ -1125,7 +1089,7 @@ mod test {
         let tx = TransactionRequest::default()
             .with_from(wallet)
             .with_to(executor)
-            .with_input(fb.build());
+            .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
         provider.evm_mine(None).await.unwrap();
@@ -1134,7 +1098,7 @@ mod test {
             .await
             .unwrap()
             .unwrap();
-
+        assert!(receipt.status());
         println!("excodecopy gas used {:?}", receipt.gas_used);
         assert_eq!(
             address!("6266c8947cb0834202f2a3be9e0b5f97e0089fda"),
@@ -1143,17 +1107,6 @@ mod test {
 
         let created_flipper2_runtime = provider.get_code_at(flipper2).await.unwrap();
         assert_eq!(created_flipper2_runtime, created_flipper_runtime);
-
-
-
-
-
-
-
-
-
-
-
 
     }
 }
