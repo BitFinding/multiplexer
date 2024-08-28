@@ -513,9 +513,7 @@ mod test {
         let provider = get_provider();
 
         // reality check
-        let two_eth = U256::from(2e18 as u64);
-        let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-        let weth9_balance = provider.get_balance(weth9).await.unwrap();
+        let weth9_balance = provider.get_balance(WETH9).await.unwrap();
         assert_eq!(format!("{}", weth9_balance), "2933633723194923479377016");
 
         // test wallets
