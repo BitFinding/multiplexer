@@ -27,6 +27,8 @@ fn main() {
     println!("cargo::rerun-if-changed=contracts/executor.sol");
     println!("cargo::rerun-if-changed=contracts/proxy.sol");
 
+    let _ = std::fs::create_dir_all("contracts_output");
+
     let executor_file = "contracts/executor.sol";
     let executor_contract = "contracts/executor.sol:executor";
     let executor_solc = build_get_json(executor_file);
@@ -34,10 +36,10 @@ fn main() {
     let executor_binruntime = &executor_outs.bin_runtime;
     let executor_bin = &executor_outs.bin;
 
-    let mut file = File::create("contracts/executor.bin").unwrap();
+    let mut file = File::create("contracts_output/executor.bin").unwrap();
     file.write_all(&hex::decode(executor_bin).expect("failed to decode hex binary from solc output")).unwrap();
 
-    let mut file = File::create("contracts/executor_runtime.bin").unwrap();
+    let mut file = File::create("contracts_output/executor_runtime.bin").unwrap();
     file.write_all(&hex::decode(executor_binruntime).expect("failed to decode hex binary from solc output")).unwrap();
 
 
@@ -48,9 +50,9 @@ fn main() {
     let proxy_binruntime = &proxy_outs.bin_runtime;
     let proxy_bin = &proxy_outs.bin;
 
-    let mut file = File::create("contracts/proxy.bin").unwrap();
+    let mut file = File::create("contracts_output/proxy.bin").unwrap();
     file.write_all(&hex::decode(proxy_bin).expect("failed to decode hex binary from solc output")).unwrap();
 
-    let mut file = File::create("contracts/proxy_runtime.bin").unwrap();
+    let mut file = File::create("contracts_output/proxy_runtime.bin").unwrap();
     file.write_all(&hex::decode(proxy_binruntime).expect("failed to decode hex binary from solc output")).unwrap();
 }
