@@ -18,5 +18,5 @@ serde_json = "1.0"
 
 [lib]
 name = "multiplexer"
-path = "src/multiplexer.rs"
+path = "src/lib.rs"
 
