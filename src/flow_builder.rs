@@ -1,6 +1,8 @@
 use alloy_primitives::{Address, U256};
 
-use crate::opcodes::{Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue};
+use crate::opcodes::{
+    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue,
+};
 
 // Enum for all opcode actions
 enum Action {
@@ -53,35 +55,35 @@ impl FlowBuilder {
                 Action::Call(_) => {
                     last_value = U256::ZERO;
                     false
-                },
+                }
                 Action::Create(Create { created_address }) => {
                     last_target = *created_address;
                     last_value = U256::ZERO;
                     false
-                },
+                }
                 Action::SetAddr(SetAddr { addr }) => {
                     let res = last_target == *addr;
                     last_target = *addr;
                     res
-                },
+                }
                 Action::SetValue(SetValue { value }) => {
                     let res = last_value == *value;
                     last_value = *value;
                     res
-                },
+                }
                 Action::ClearData(ClearData { size }) => {
                     let res = last_data.len() == *size as usize;
                     last_data = vec![0; *size as usize];
                     res
-                },
+                }
                 Action::SetData(SetData { offset, data }) => {
                     let offset_uz = *offset as usize;
                     let mut new_data = last_data.clone();
-                    new_data.splice(offset_uz  .. offset_uz + data.len(), data.to_owned());
+                    new_data.splice(offset_uz..offset_uz + data.len(), data.to_owned());
                     let res = last_data == new_data;
                     last_data = new_data;
                     res
-                },
+                }
                 _ => false,
             };
             if to_remove {
@@ -95,8 +97,19 @@ impl FlowBuilder {
     }
 
     /// Adds an `EXTCODECOPY` operation to the action list.
-    pub fn set_extcodecopy_op(mut self, source: Address, data_offset: u16, code_offset: u16, size: u16) -> Self {
-        self.actions.push(Action::ExtCodeCopy(ExtCodeCopy{ source, data_offset, code_offset, size }));
+    pub fn set_extcodecopy_op(
+        mut self,
+        source: Address,
+        data_offset: u16,
+        code_offset: u16,
+        size: u16,
+    ) -> Self {
+        self.actions.push(Action::ExtCodeCopy(ExtCodeCopy {
+            source,
+            data_offset,
+            code_offset,
+            size,
+        }));
         self
     }
 

@@ -6,8 +6,8 @@ pub const DELEGATE_PROXY_INIT: &[u8] = include_bytes!("../contracts_output/proxy
 pub const EXECUTOR_RUNTIME: &[u8] = include_bytes!("../contracts_output/executor_runtime.bin");
 pub const DELEGATE_PROXY_RUNTIME: &[u8] = include_bytes!("../contracts_output/proxy_runtime.bin");
 
-pub mod opcodes;
 pub mod flow_builder;
+pub mod opcodes;
 
 // Re-export Flowbuilder
 pub use flow_builder::FlowBuilder;

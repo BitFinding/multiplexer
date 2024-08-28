@@ -90,10 +90,10 @@ impl SetValue {
 
 // Struct for the EXTCODECOPY operation
 pub struct ExtCodeCopy {
-    pub source: Address, // Address of contract to copy code from
-    pub data_offset: u16,     // Offset in the data to copy the code to
-    pub code_offset: u16,     // Offset in the code to copy from
-    pub size: u16,       // Size of the code to copy
+    pub source: Address,  // Address of contract to copy code from
+    pub data_offset: u16, // Offset in the data to copy the code to
+    pub code_offset: u16, // Offset in the code to copy from
+    pub size: u16,        // Size of the code to copy
 }
 
 impl ExtCodeCopy {
