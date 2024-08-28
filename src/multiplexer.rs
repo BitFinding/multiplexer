@@ -1,6 +1,6 @@
 use alloy::{
     hex,
-    primitives::{Address, U256},
+    primitives::{address, Address, U256},
 };
 
 // Operation opcodes as constants
@@ -94,15 +94,17 @@ impl SetValue {
 // Struct for the EXTCODECOPY operation
 pub struct ExtCodeCopy {
     pub source: Address, // Address of contract to copy code from
-    pub offset: u16,     // Offset to copy code to
+    pub data_offset: u16,     // Offset in the data to copy the code to
+    pub code_offset: u16,     // Offset in the code to copy from 
     pub size: u16,       // Size of the code to copy
 }
 
 impl ExtCodeCopy {
-    pub fn new(source: Address, offset: u16, size: u16) -> Self {
+    pub fn new(source: Address, data_offset: u16, code_offset: u16, size: u16) -> Self {
         ExtCodeCopy {
             source,
-            offset,
+            data_offset,
+            code_offset,            
             size,
         }
     }
@@ -111,7 +113,8 @@ impl ExtCodeCopy {
         let mut encoded = Vec::new();
         encoded.push(OP_EXTCODECOPY); // Opcode
         encoded.extend(&self.source); // Source address
-        encoded.extend(&self.offset.to_be_bytes()); // Offset
+        encoded.extend(&self.data_offset.to_be_bytes()); // Offset
+        encoded.extend(&self.code_offset.to_be_bytes()); // Offset
         encoded.extend(&self.size.to_be_bytes()); // Size
         encoded
     }
@@ -203,63 +206,72 @@ impl FlowBuilder {
         Self::default()
     }
 
-    fn set_addr_op(&mut self, addr: Address) {
+    fn set_extcodecopy_op(mut self, source: Address, data_offset: u16, code_offset: u16, size: u16) -> Self {
+        self.actions.push(Action::ExtCodeCopy(ExtCodeCopy{ source, data_offset, code_offset, size }));
+        self
+    }
+
+    fn set_addr_op(mut self, addr: Address) -> Self {
         self.actions.push(Action::SetAddr(SetAddr { addr }));
+        self
     }
 
-    fn set_value_op(&mut self, value: U256) {
+    fn set_value_op(mut self, value: U256) -> Self {
         self.actions.push(Action::SetValue(SetValue { value }));
+        self
     }
 
-    fn set_data_op(&mut self, offset: u16, data: &[u8]) {
+    fn set_data_op(mut self, offset: u16, data: &[u8]) -> Self {
         self.actions.push(Action::SetData(SetData {
             offset,
             data: data.to_owned(),
         }));
+        self
     }
 
-    fn set_cleardata_op(&mut self, size: u16) {
+    fn set_cleardata_op(mut self, size: u16) -> Self {
         self.actions.push(Action::ClearData(ClearData { size }));
+        self
     }
 
-    fn call_op(&mut self) {
+    fn call_op(mut self) -> Self {
         self.actions.push(Action::Call(Call::new()));
+        self
     }
 
-    fn create_op(&mut self, created_address: Address) {
+    fn create_op(mut self, created_address: Address) -> Self {
         self.actions
             .push(Action::Create(Create { created_address }));
+        self
     }
 
-    fn delegatecall_op(&mut self) {
+    fn delegatecall_op(mut self) -> Self {
         self.actions.push(Action::DelegateCall(DelegateCall::new()));
+        self
     }
 
-    pub fn call(mut self, target: Address, data: &[u8], value: U256) -> Self {
+    pub fn call(self, target: Address, data: &[u8], value: U256) -> Self {
         assert!(data.len() < u16::MAX as usize, "datalen exceeds 0xffff");
 
-        self.set_addr_op(target);
-        self.set_value_op(value);
-        self.set_cleardata_op(data.len() as u16);
-        self.set_data_op(0, data);
-        self.call_op();
-        self
+        self.set_addr_op(target)
+            .set_value_op(value)
+            .set_cleardata_op(data.len() as u16)
+            .set_data_op(0, data)
+            .call_op()
     }
 
-    pub fn delegatecall(mut self, target: Address, data: &[u8]) -> Self {
-        self.set_addr_op(target);
-        self.set_cleardata_op(data.len() as u16);
-        self.set_data_op(0, data);
-        self.delegatecall_op();
-        self
+    pub fn delegatecall(self, target: Address, data: &[u8]) -> Self {
+        self.set_addr_op(target)
+            .set_cleardata_op(data.len() as u16)
+            .set_data_op(0, data)
+            .delegatecall_op()
     }
 
-    pub fn create(mut self, created_address: Address, data: &[u8], value: U256) -> Self {
-        self.set_value_op(value);
-        self.set_cleardata_op(data.len() as u16);
-        self.set_data_op(0, data);
-        self.create_op(created_address);
-        self
+    pub fn create(self, created_address: Address, data: &[u8], value: U256) -> Self {
+        self.set_value_op(value)
+            .set_cleardata_op(data.len() as u16)
+            .set_data_op(0, data)
+            .create_op(created_address)
     }
 
     pub fn build(self) -> Vec<u8> {
@@ -791,7 +803,7 @@ mod test {
     #[tokio::test]
     async fn test_wallet_can_proxycreate_ultimate() {
         let provider = get_provider();
-        
+
         // reality check
         let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
         let weth9_contract = IERC20::new(weth9, provider.clone());
@@ -863,12 +875,7 @@ mod test {
         /// Deposit weth in the proxy account
         // Use the deployed Proxy(Executor) contract (wallet is the owner) to deposit weth
         let deposit_calldata = [];
-        let fb = FlowBuilder::empty()
-            .call(
-                weth9,
-                &deposit_calldata,
-                twoeth,
-            );
+        let fb = FlowBuilder::empty().call(weth9, &deposit_calldata, twoeth);
 
         let tx = TransactionRequest::default()
             .with_from(wallet)
@@ -885,7 +892,7 @@ mod test {
             .unwrap()
             .unwrap();
         assert!(res.status());
-        
+
         // Executor account has no assets
         // 0 eth
         // 0 weth
@@ -894,29 +901,26 @@ mod test {
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
-        // Proxy(Executor) account has 2 weth 
+        // Proxy(Executor) account has 2 weth
         // 0 eth
         // 2 weth
         let proxy_executor_balance = provider.get_balance(proxy_executor).await.unwrap();
         assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
-        let proxy_executor_weth_balance = weth9_contract.balanceOf(proxy_executor).call().await.unwrap()._0;
+        let proxy_executor_weth_balance = weth9_contract
+            .balanceOf(proxy_executor)
+            .call()
+            .await
+            .unwrap()
+            ._0;
         assert_eq!(proxy_executor_weth_balance, twoeth); // executor should have 2 eth worth of weth
-
-
 
         ////////////////////////////////////////////////////////////
         /// Whithdraw weth from the proxy account
         // Use the deployed Proxy(Executor) contract (wallet is the owner) to deposit weth
-
-        let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap(); 
+        let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
         withdraw_calldata.extend(twoeth.to_be_bytes::<32>().iter());
 
-        let fb = FlowBuilder::empty()
-            .call(
-                weth9,
-                &withdraw_calldata,
-                U256::ZERO,
-            );
+        let fb = FlowBuilder::empty().call(weth9, &withdraw_calldata, U256::ZERO);
 
         let tx = TransactionRequest::default()
             .with_from(wallet)
@@ -933,7 +937,7 @@ mod test {
             .unwrap()
             .unwrap();
         assert!(res.status());
-        
+
         // Executor account has no assets
         // 0 eth
         // 0 weth
@@ -942,13 +946,162 @@ mod test {
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
-        // Proxy(Executor) account has 2 weth 
+        // Proxy(Executor) account has 2 weth
         // 0 eth
         // 2 weth
         let proxy_executor_balance = provider.get_balance(proxy_executor).await.unwrap();
         assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
-        let proxy_executor_weth_balance = weth9_contract.balanceOf(proxy_executor).call().await.unwrap()._0;
+        let proxy_executor_weth_balance = weth9_contract
+            .balanceOf(proxy_executor)
+            .call()
+            .await
+            .unwrap()
+            ._0;
         assert_eq!(proxy_executor_weth_balance, twoeth); // executor should have 2 eth worth of weth
+    }
+
+    #[tokio::test]
+    async fn test_extcodecopy() {
+        // Flipper.sol::
+        // contract proxy {
+        //     bool flag;
+        //     function flip() external {
+        //         flag = !flag;
+        //     }
+        // }
+
+        let flipper_init = hex!("6080604052348015600e575f80fd5b50608f80601a5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c8063cde4efa914602a575b5f80fd5b60306032565b005b5f8054906101000a900460ff16155f806101000a81548160ff02191690831515021790555056fea264697066735822122054836815366ebd9b068e7694d59a986fb0267bc2cc7c9ec20ffdccea97c00a3b64736f6c634300081a0033");
+        let flipper_runtime = hex!("6080604052348015600e575f80fd5b50600436106026575f3560e01c8063cde4efa914602a575b5f80fd5b60306032565b005b5f8054906101000a900460ff16155f806101000a81548160ff02191690831515021790555056fea264697066735822122054836815366ebd9b068e7694d59a986fb0267bc2cc7c9ec20ffdccea97c00a3b64736f6c634300081a0033");
+        let flipper_prolog = hex!("6080604052348015600e575f80fd5b50608f80601a5f395ff3fe");
+        let provider = get_provider();
+
+        // reality check
+        let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        let weth_balance = provider.get_balance(weth9).await.unwrap();
+        assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
+
+        // test wallets
+        // 0x4141414141..4141414141  with 1001 eth
+        // 0x4242424242..4242424242  with 1001 eth
+        let budget = U256::from(1000e18 as u64);
+        let twoeth = U256::from(2e18 as u64);
+        let wallet = Address::repeat_byte(0x41);
+        let bob = Address::repeat_byte(0x42);
+
+        provider
+            .anvil_set_balance(wallet, budget + U256::from(1e18 as u64))
+            .await
+            .unwrap();
+        provider
+            .anvil_set_balance(bob, budget + U256::from(1e18 as u64))
+            .await
+            .unwrap();
+        // Make the Executor contract (wallet is the owner)
+        let tx = TransactionRequest::default()
+            .with_from(wallet)
+            .with_deploy_code(hex::decode(EXECUTOR_INIT).unwrap())
+            .with_nonce(0);
+
+        let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+        provider.evm_mine(None).await.unwrap();
+        let res = provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
+        let executor = res.contract_address.unwrap();
+
+        // create normal flipper account.
+        let tx = TransactionRequest::default()
+            .with_from(wallet)
+            .with_deploy_code(flipper_init);
+
+        let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+        provider.evm_mine(None).await.unwrap();
+        let res = provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
+        let flipper = res.contract_address.unwrap();
+
+        let created_flipper_runtime = provider.get_code_at(flipper).await.unwrap();
+
+        // The created flipper has the expected runtime bytecode. duh
+        assert_eq!(created_flipper_runtime.to_vec(), flipper_runtime.to_vec());
+
+        let flipper1 = executor.create(1);
+        let fb = FlowBuilder::empty()
+            .set_cleardata_op(flipper_init.len() as u16)
+            .set_data_op(0, &flipper_init)
+            .create_op(flipper1);
+
+        // create normal flipper account. Using data ops
+        let tx = TransactionRequest::default()
+            .with_from(wallet)
+            .with_to(executor)
+            .with_input(fb.build());
+
+        let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+        provider.evm_mine(None).await.unwrap();
+        let receipt = provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
+        println!("NO excodecopy gas used {:?}", receipt.gas_used);
+
+        assert_eq!(
+            address!("c84f9705070281e8c800c57d92dbab053a80a2d0"),
+            flipper1
+        );
+
+        let created_flipper1_runtime = provider.get_code_at(flipper1).await.unwrap();
+        assert_eq!(created_flipper1_runtime, created_flipper_runtime);
+
+        // create normal flipper account. Using data Extcodecopy
+        let flipper2 = executor.create(2);
+        let fb = FlowBuilder::empty()
+            .set_cleardata_op(flipper_init.len() as u16)
+              .set_data_op(0, &flipper_prolog)
+            //  .set_data_op(flipper_prolog.len() as u16, &flipper_runtime)
+            //.set_data_op(0, &flipper_init)
+
+            .set_extcodecopy_op(flipper1, flipper_prolog.len() as u16, 0, created_flipper_runtime.len() as u16)
+            .create_op(flipper2);
+
+
+        let tx = TransactionRequest::default()
+            .with_from(wallet)
+            .with_to(executor)
+            .with_input(fb.build());
+
+        let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
+        provider.evm_mine(None).await.unwrap();
+        let receipt = provider
+            .get_transaction_receipt(tx_hash)
+            .await
+            .unwrap()
+            .unwrap();
+
+        println!("excodecopy gas used {:?}", receipt.gas_used);
+        assert_eq!(
+            address!("6266c8947cb0834202f2a3be9e0b5f97e0089fda"),
+            flipper2
+        );
+
+        let created_flipper2_runtime = provider.get_code_at(flipper2).await.unwrap();
+        assert_eq!(created_flipper2_runtime, created_flipper_runtime);
+
+
+
+
+
+
+
+
+
+
 
 
     }
