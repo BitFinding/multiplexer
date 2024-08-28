@@ -202,12 +202,62 @@ pub struct FlowBuilder {
 }
 
 impl FlowBuilder {
-    fn new() -> Self {
+    pub fn empty() -> Self {
         Self::default()
     }
 
-    fn empty() -> Self {
-        Self::default()
+    fn peephole_opt(&mut self) {
+        // Optimize SetTarget and SetValues
+        let mut ops_to_remove = Vec::new();
+        let mut last_value = U256::ZERO;
+        let mut last_target = Address::ZERO;
+        let mut last_data: Vec<u8> = Vec::new();
+        // let mut last_clear_data = 0;
+
+        for (idx, action) in self.actions.iter().enumerate() {
+            let to_remove = match action {
+                Action::Call(_) => {
+                    last_value = U256::ZERO;
+                    false
+                },
+                Action::Create(Create { created_address }) => {
+                    last_target = *created_address;
+                    last_value = U256::ZERO;
+                    false
+                },
+                Action::SetAddr(SetAddr { addr }) => {
+                    let res = last_target == *addr;
+                    last_target = *addr;
+                    res
+                },
+                Action::SetValue(SetValue { value }) => {
+                    let res = last_value == *value;
+                    last_value = *value;
+                    res
+                },
+                Action::ClearData(ClearData { size }) => {
+                    let res = last_data.len() == *size as usize;
+                    last_data = vec![0; *size as usize];
+                    res
+                },
+                Action::SetData(SetData { offset, data }) => {
+                    let offset_uz = *offset as usize;
+                    let mut new_data = last_data.clone();
+                    new_data.splice(offset_uz  .. offset_uz + data.len(), data.to_owned());
+                    let res = last_data == new_data;
+                    last_data = new_data;
+                    res
+                },
+                _ => false,
+            };
+            if to_remove {
+                ops_to_remove.push(idx);
+            }
+        }
+
+        for idx in ops_to_remove.into_iter().rev() {
+            self.actions.remove(idx);
+        }
     }
 
     fn set_extcodecopy_op(mut self, source: Address, data_offset: u16, code_offset: u16, size: u16) -> Self {
@@ -278,8 +328,9 @@ impl FlowBuilder {
             .create_op(created_address)
     }
 
-    pub fn build(self) -> Vec<u8> {
+    pub fn build(mut self) -> Vec<u8> {
         let mut res = Vec::new();
+        self.peephole_opt();
         for action in self.actions {
             res.extend(&action.encode());
         }
@@ -346,7 +397,7 @@ mod test {
             .call(addr_a, &vec![98, 99], U256::ZERO)
             .delegatecall(addr_b, &vec![70, 71])
             .build();
-        assert_eq!(calldata, hex!("03000000000000000000000000000000000000000000000000000000000000000a00000401000000044c414c410602414141414141414141414141414141414141414103000000000000000000000000000000000000000000000000000000000000000000000201000000026263050242424242424242424242424242424242424242420000020100000002464707"));
+        assert_eq!(calldata, hex!("03000000000000000000000000000000000000000000000000000000000000000a00000401000000044c414c410602414141414141414141414141414141414141414100000201000000026263050242424242424242424242424242424242424242420100000002464707"));
     }
 
     #[tokio::test]
