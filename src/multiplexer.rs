@@ -345,7 +345,7 @@ mod test {
     use alloy::{
         hex,
         network::TransactionBuilder,
-        primitives::{address, bytes, Address, ChainId, U256},
+        primitives::{uint, address, bytes, Address, ChainId, U256},
         providers::{
             self, ext::AnvilApi, layers::AnvilProvider, Provider, ProviderBuilder, RootProvider,
         },
@@ -356,8 +356,10 @@ mod test {
     };
     use core::str;
 
-    const BUDGET: U256 = U256::from(1000e18 as u64);
-    const TWO_ETH: U256 = U256::from(2e18 as u64);
+    // 1000e18
+    const BUDGET: U256 = uint!(1000000000000000000000_U256);
+    // 2e18
+    const TWO_ETH: U256 = uint!(2000000000000000000_U256);
     const WALLET: Address = Address::repeat_byte(0x41);
     const BOB: Address = Address::repeat_byte(0x42);
     const WETH9: Address = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
