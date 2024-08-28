@@ -361,7 +361,7 @@ mod test {
     const WALLET: Address = Address::repeat_byte(0x41);
     const BOB: Address = Address::repeat_byte(0x42);
     const WETH9: Address = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-        // Create a provider.
+    fn get_provider() -> AnvilProvider<RootProvider<Http<Client>>, Http<Client>> {
         ProviderBuilder::new().on_anvil_with_config(|anvil| {
             anvil
                 .fork(std::env::var("ETH_RPC_URL").expect("failed to retrieve RPC url from env"))
