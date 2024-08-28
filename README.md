@@ -20,7 +20,7 @@ The operations are encoded as single-byte opcodes, and each operation modifies t
 - **EXTCODECOPY (0x04):** Copies the external code of a contract into the `txData`.
 - **CALL (0x05):** Executes a contract call using the built-up in-memory transaction state (address, data, and value).
 - **CREATE (0x06):** Deploys a new contract using the built-up in-memory transaction state (data and value), and stores the result address in the memory state.
-- **DELEGATECALL (0x07):** DEBUG. Executes a delegatecall to another contract, using the accumulated transaction state.
+- **DELEGATECALL (0x07):** Executes a delegatecall to another contract, using the accumulated transaction state.
 
 ## Memory Context
 
@@ -55,7 +55,7 @@ Consider a sequence where the contract clears the transaction data, sets an addr
 0x01 + 0x0000 + 0x0002    // SETDATA (offset = 0, 2 items)
 <32 bytes of data item 1> // Data chunk 1
 <32 bytes of data item 2> // Data chunk 2
-0x80                      // CALL (executes the call using prepared state)
+0x05                      // CALL (executes the call using prepared state)
 ```
 
 This sequence builds up the txData and sets up a target address and value before making the contract call.
