@@ -1,5 +1,24 @@
-use std::{fs::File, io::Write, process::Command};
+use std::{collections::HashMap, fs::File, io::Write, process::Command};
 use hex;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct SolSrcInfo {
+    #[serde(rename = "bin-runtime")]
+    bin_runtime: String,
+    bin: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SolJsonOut {
+    contracts: HashMap<String, SolSrcInfo>,
+}
+
+fn build_get_json(source: &str) -> SolJsonOut {
+    let output_execute = Command::new("sh").args(["-c", &format!("solc {} --via-ir --optimize --optimize-runs 2000 --combined-json=bin,bin-runtime", source)]).output().unwrap();
+    let sol_output: SolJsonOut = serde_json::from_slice(&output_execute.stdout).expect("failed to load solc output");
+    sol_output
+}
 
 // Example custom build script.
 fn main() {
@@ -8,19 +27,30 @@ fn main() {
     println!("cargo::rerun-if-changed=contracts/executor.sol");
     println!("cargo::rerun-if-changed=contracts/proxy.sol");
 
-    // compile the solidity files into executor.bin and proxy.bin
-    let output_executor = Command::new("sh").args(["-c", "solc contracts/executor.sol --via-ir --optimize --optimize-runs 2000 --bin"]).output().unwrap();
+    let executor_file = "contracts/executor.sol";
+    let executor_contract = "contracts/executor.sol:executor";
+    let executor_solc = build_get_json(executor_file);
+    let executor_outs = executor_solc.contracts.get(executor_contract).expect("solc output didn't generate the executor file");
+    let executor_binruntime = &executor_outs.bin_runtime;
+    let executor_bin = &executor_outs.bin;
+
     let mut file = File::create("contracts/executor.bin").unwrap();
-    file.write_all(&hex::decode(output_executor.stdout[56..].trim_ascii()).unwrap()).unwrap();
+    file.write_all(&hex::decode(executor_bin).expect("failed to decode hex binary from solc output")).unwrap();
+
+    let mut file = File::create("contracts/executor_runtime.bin").unwrap();
+    file.write_all(&hex::decode(executor_binruntime).expect("failed to decode hex binary from solc output")).unwrap();
 
 
-    // compile the solidity files into executor.bin and proxy.bin
-    let output_proxy = Command::new("sh").args(["-c", "solc contracts/proxy.sol --via-ir --optimize --optimize-runs 2000 --bin"]).output().unwrap();
+    let proxy_file = "contracts/proxy.sol";
+    let proxy_contract = "contracts/proxy.sol:proxy";
+    let proxy_solc = build_get_json(proxy_file);
+    let proxy_outs = proxy_solc.contracts.get(proxy_contract).expect("solc output didn't generate the proxy file");
+    let proxy_binruntime = &proxy_outs.bin_runtime;
+    let proxy_bin = &proxy_outs.bin;
+
     let mut file = File::create("contracts/proxy.bin").unwrap();
-    file.write_all(&hex::decode(output_proxy.stdout[50..].trim_ascii()).unwrap()).unwrap();
+    file.write_all(&hex::decode(proxy_bin).expect("failed to decode hex binary from solc output")).unwrap();
 
-    // print a warning if err
-    if !output_executor.status.success() || !output_proxy.status.success() {
-        println!("cargo::warning=Can NOT compile the solidity contracts. Make sure you have a solc compiler in the path.");
-    }
+    let mut file = File::create("contracts/proxy_runtime.bin").unwrap();
+    file.write_all(&hex::decode(proxy_binruntime).expect("failed to decode hex binary from solc output")).unwrap();
 }

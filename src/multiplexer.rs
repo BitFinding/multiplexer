@@ -1,11 +1,11 @@
-use alloy::{
-    hex,
-    primitives::{address, Address, U256},
-};
+use alloy_primitives::{Address, U256};
 
 // Contract bytecode
-const EXECUTOR_INIT: &[u8] = include_bytes!("../contracts/executor.bin");
-const DELEGATE_PROXY_INIT: &[u8] = include_bytes!("../contracts/proxy.bin");
+pub const EXECUTOR_INIT: &[u8] = include_bytes!("../contracts/executor.bin");
+pub const DELEGATE_PROXY_INIT: &[u8] = include_bytes!("../contracts/proxy.bin");
+
+pub const EXECUTOR_RUNTIME: &[u8] = include_bytes!("../contracts/executor_runtime.bin");
+pub const DELEGATE_PROXY_RUNTIME: &[u8] = include_bytes!("../contracts/proxy_runtime.bin");
 
 // Operation opcodes as constants
 pub const OP_CLEARDATA: u8 = 0x00;
@@ -283,7 +283,6 @@ impl FlowBuilder {
         for action in self.actions {
             res.extend(&action.encode());
         }
-        println!("{}", hex::encode(&res));
         res
     }
 }
