@@ -402,7 +402,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_bob_can_not_interact() {
+    async fn test_bob_cannot_interact() {
         // A random account can not interact with multiplexer
         let provider = ProviderBuilder::new().on_anvil();
         let budget = U256::from(1000e18 as u64);
@@ -511,14 +511,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_wallet_can_proxycall() {
+    async fn test_wallet_can_proxy_call() {
         let provider = get_provider();
 
         // reality check
         let two_eth = U256::from(2e18 as u64);
         let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-        let weth_balance = provider.get_balance(weth9).await.unwrap();
-        assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
+        let weth9_balance = provider.get_balance(weth9).await.unwrap();
+        assert_eq!(format!("{}", weth9_balance), "2933633723194923479377016");
 
         // test wallets
         // 0x4141414141..4141414141  with 1001 eth
@@ -631,7 +631,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_wallet_can_proxycreate() {
+    async fn test_wallet_can_proxy_create() {
         let provider = get_provider();
 
         // reality check
@@ -643,7 +643,7 @@ mod test {
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
         let budget = U256::from(1000e18 as u64);
-        let twoeth = U256::from(2e18 as u64);
+        let two_eth = U256::from(2e18 as u64);
         let wallet = Address::repeat_byte(0x41);
         let bob = Address::repeat_byte(0x42);
 
@@ -810,7 +810,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_wallet_can_proxycreate_ultimate() {
+    async fn test_wallet_can_proxy_create_ultimate() {
         let provider = get_provider();
 
         // reality check
