@@ -345,9 +345,9 @@ mod test {
     use alloy::{
         hex,
         network::TransactionBuilder,
-        primitives::{uint, address, bytes, Address, ChainId, U256},
+        primitives::{uint, address, bytes, Address, U256},
         providers::{
-            self, ext::AnvilApi, layers::AnvilProvider, Provider, ProviderBuilder, RootProvider,
+            ext::AnvilApi, layers::AnvilProvider, Provider, ProviderBuilder, RootProvider,
         },
         rpc::types::TransactionRequest,
         sol,
@@ -437,7 +437,7 @@ mod test {
         assert!(receipt.status());
         let executor_wallet = receipt.contract_address.unwrap();
 
-        // Executor address is deterministic because we use always same wallet and nonce.
+        // Executor address is deterministic because we use always same WALLET and nonce.
         assert_eq!(
             address!("c088f75b5733d097f266010c1502399a53bdfdbd"),
             executor_wallet
@@ -484,7 +484,7 @@ mod test {
             .unwrap()
             .unwrap();
         let executor_wallet = receipt.contract_address.unwrap();
-        // Executor address is deterministic because we use always same wallet and nonce.
+        // Executor address is deterministic because we use always same WALLET and nonce.
         assert_eq!(
             address!("c088f75b5733d097f266010c1502399a53bdfdbd"),
             executor_wallet
@@ -494,7 +494,7 @@ mod test {
             .with_from(WALLET)
             .with_to(executor_wallet)
             .with_nonce(1)
-            .with_value(budget);
+            .with_value(BUDGET);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -502,10 +502,10 @@ mod test {
 
         let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap();
 
-        assert!(receipt.is_some()); // Tx succeed from wallet
+        assert!(receipt.is_some()); // Tx succeed from WALLET
 
         let account_balance = provider.get_balance(executor_wallet).await.unwrap();
-        assert_eq!(account_balance, budget); // executor has the money sent in empty tx
+        assert_eq!(account_balance, BUDGET); // executor has the money sent in empty tx
     }
 
     #[tokio::test]
@@ -516,7 +516,7 @@ mod test {
         let weth9_balance = provider.get_balance(WETH9).await.unwrap();
         assert_eq!(format!("{}", weth9_balance), "2933633723194923479377016");
 
-        // test wallets
+        // test WALLETs
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
         provider
@@ -528,7 +528,7 @@ mod test {
             .await
             .unwrap();
 
-        // Make the Executor contract (wallet is the owner)
+        // Make the Executor contract (WALLET is the owner)
         let tx = TransactionRequest::default()
             .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
@@ -547,12 +547,12 @@ mod test {
         // 0 eth
         // 0 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
-        let fb = FlowBuilder::empty().call(weth9, &bytes!(""), two_eth); // this should send 2 eth to weth and assign the same weth value to the executor
+        let fb = FlowBuilder::empty().call(WETH9, &bytes!(""), TWO_ETH); // this should send 2 eth to weth and assign the same weth value to the executor
                                                                          // SETADDR 02 c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
                                                                          // SETVALUE 03 0000000000000000000000000000000000000000000000001bc16d674ec80000
                                                                          // CLRDATA 00 0000
@@ -580,18 +580,18 @@ mod test {
         // 0 eth
         // 2 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
 
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
-        assert_eq!(executor_weth_balance, two_eth); // executor should have 2 eth worth of weth
+        assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
         // WETH withdraw!!
         // TODO try to USE sol!() like the balanceOf IERC20 example instead to encode the withdraw(...) funcid
         let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
-        withdraw_calldata.extend(two_eth.to_be_bytes::<32>().iter());
+        withdraw_calldata.extend(TWO_ETH.to_be_bytes::<32>().iter());
 
-        let fb = FlowBuilder::empty().call(weth9, &withdraw_calldata, U256::ZERO); // this should send 2 eth to weth and assign the same weth value to the executor
+        let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO); // this should send 2 eth to weth and assign the same weth value to the executor
 
         let tx = TransactionRequest::default()
             .with_from(WALLET)
@@ -615,9 +615,9 @@ mod test {
         // 2 eth
         // 0 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, two_eth); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, TWO_ETH); // executor shoud shave sent the value to WETH9
 
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
     }
@@ -627,11 +627,10 @@ mod test {
         let provider = get_provider();
 
         // reality check
-        let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-        let weth_balance = provider.get_balance(weth9).await.unwrap();
+        let weth_balance = provider.get_balance(WETH9).await.unwrap();
         assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
 
-        // test wallets
+        // test WALLETs
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
         provider
@@ -642,7 +641,7 @@ mod test {
             .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
-        // Make the Executor contract (wallet is the owner)
+        // Make the Executor contract (WALLET is the owner)
         let tx = TransactionRequest::default()
             .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
@@ -675,8 +674,8 @@ mod test {
             .create(executor.create(1), &calldata, U256::ZERO)
             .call(
                 executor.create(1),
-                &FlowBuilder::empty().call(weth9, &vec![], two_eth).build(true),
-                two_eth,
+                &FlowBuilder::empty().call(WETH9, &vec![], TWO_ETH).build(true),
+                TWO_ETH,
             );
 
         let tx = TransactionRequest::default()
@@ -698,7 +697,7 @@ mod test {
         assert!(receipt.status());
 
         let account_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(account_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(account_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
         assert_eq!(
             address!("c84f9705070281e8c800c57d92dbab053a80a2d0"),
             executor.create(1)
@@ -708,9 +707,9 @@ mod test {
         // 0 eth
         // 0 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
 
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
@@ -719,27 +718,27 @@ mod test {
         // 2 weth
 
         let executor_balance = provider.get_balance(executor.create(1)).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
 
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract
             .balanceOf(executor.create(1))
             .call()
             .await
             .unwrap()
             ._0;
-        assert_eq!(executor_weth_balance, two_eth); // executor should have 2 eth worth of weth
+        assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
         // Test ownership in the created proxy
-        // wallet -> executor -> proxy mint some weth
+        // WALLET -> executor -> proxy mint some weth
 
         // WETH withdraw!!
         // TODO try to USE sol!() like the balanceOf IERC20 example instead to encode the withdraw(...) funcid
         let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
-        withdraw_calldata.extend(two_eth.to_be_bytes::<32>().iter());
+        withdraw_calldata.extend(TWO_ETH.to_be_bytes::<32>().iter());
 
         let multiplexed_withdraw_calldata = FlowBuilder::empty()
-            .call(weth9, &withdraw_calldata, U256::ZERO)
+            .call(WETH9, &withdraw_calldata, U256::ZERO)
             .build(true); // multiplexed withdraw from weth
 
         let fb = FlowBuilder::empty().call(
@@ -751,7 +750,7 @@ mod test {
         let tx = TransactionRequest::default()
             .with_from(WALLET)
             .with_to(executor)
-            .with_value(two_eth)
+            .with_value(TWO_ETH)
             .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -770,9 +769,9 @@ mod test {
         // 2 eth
         // 0 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, two_eth); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, TWO_ETH); // executor shoud shave sent the value to WETH9
 
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
@@ -781,16 +780,16 @@ mod test {
         // 0 weth
 
         let executor_balance = provider.get_balance(executor.create(1)).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
 
-        let weth9_contract = IERC20::new(weth9, provider.clone());
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
         let executor_weth_balance = weth9_contract
             .balanceOf(executor.create(1))
             .call()
             .await
             .unwrap()
             ._0;
-        assert_eq!(executor_weth_balance, two_eth); // executor should have 2 eth worth of weth
+        assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
         // bob -> executor -> ?? :fail:
         // bob -> proxy  :fail:
@@ -801,12 +800,11 @@ mod test {
         let provider = get_provider();
 
         // reality check
-        let weth9 = WETH9;
         let weth9_contract = IERC20::new(WETH9, provider.clone());
         let weth_balance = provider.get_balance(WETH9).await.unwrap();
         assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
 
-        // test wallets
+        // test WALLETs
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
         provider
@@ -819,9 +817,9 @@ mod test {
             .unwrap();
 
         ////////////////////////////////////////////////////////////
-        // Make the Executor contract (wallet is the owner)
+        // Make the Executor contract (WALLET is the owner)
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
@@ -837,7 +835,7 @@ mod test {
         let executor = receipt.contract_address.unwrap();
 
         ////////////////////////////////////////////////////////////
-        // Make the Proxy(Executor) contract (wallet is the owner)
+        // Make the Proxy(Executor) contract (WALLET is the owner)
         // Link the proxy to the executor but do not use the delegatecall in the constructor
 
         let mut deploy_proxy_executor = DELEGATE_PROXY_INIT.to_vec();
@@ -850,7 +848,7 @@ mod test {
         );
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(deploy_proxy_executor)
             .with_nonce(1);
 
@@ -863,13 +861,13 @@ mod test {
             .unwrap();
         assert!(receipt.status());
         let proxy_executor = receipt.contract_address.unwrap();
-        assert_eq!(proxy_executor, wallet.create(1));
+        assert_eq!(proxy_executor, WALLET.create(1));
 
         ////////////////////////////////////////////////////////////
         // Deposit weth in the proxy account
-        // Use the deployed Proxy(Executor) contract (wallet is the owner) to deposit weth
+        // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
         let deposit_calldata = [];
-        let fb = FlowBuilder::empty().call(weth9, &deposit_calldata, two_eth);
+        let fb = FlowBuilder::empty().call(WETH9, &deposit_calldata, TWO_ETH);
 
         let tx = TransactionRequest::default()
             .with_from(WALLET)
@@ -891,7 +889,7 @@ mod test {
         // 0 eth
         // 0 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
@@ -899,22 +897,22 @@ mod test {
         // 0 eth
         // 2 weth
         let proxy_executor_balance = provider.get_balance(proxy_executor).await.unwrap();
-        assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
         let proxy_executor_weth_balance = weth9_contract
             .balanceOf(proxy_executor)
             .call()
             .await
             .unwrap()
             ._0;
-        assert_eq!(proxy_executor_weth_balance, two_eth); // executor should have 2 eth worth of weth
+        assert_eq!(proxy_executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
         ////////////////////////////////////////////////////////////
         // Whithdraw weth from the proxy account
-        // Use the deployed Proxy(Executor) contract (wallet is the owner) to deposit weth
+        // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
         let mut withdraw_calldata = hex::decode("2e1a7d4d").unwrap();
-        withdraw_calldata.extend(two_eth.to_be_bytes::<32>().iter());
+        withdraw_calldata.extend(TWO_ETH.to_be_bytes::<32>().iter());
 
-        let fb = FlowBuilder::empty().call(weth9, &withdraw_calldata, U256::ZERO);
+        let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO);
 
         let tx = TransactionRequest::default()
             .with_from(WALLET)
@@ -936,7 +934,7 @@ mod test {
         // 0 eth
         // 0 weth
         let executor_balance = provider.get_balance(executor).await.unwrap();
-        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
         let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
         assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
@@ -944,14 +942,14 @@ mod test {
         // 0 eth
         // 2 weth
         let proxy_executor_balance = provider.get_balance(proxy_executor).await.unwrap();
-        assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to weth9
+        assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
         let proxy_executor_weth_balance = weth9_contract
             .balanceOf(proxy_executor)
             .call()
             .await
             .unwrap()
             ._0;
-        assert_eq!(proxy_executor_weth_balance, two_eth); // executor should have 2 eth worth of weth
+        assert_eq!(proxy_executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
     }
 
     #[tokio::test]
@@ -970,11 +968,10 @@ mod test {
         let provider = get_provider();
 
         // reality check
-        let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-        let weth_balance = provider.get_balance(weth9).await.unwrap();
+        let weth_balance = provider.get_balance(WETH9).await.unwrap();
         assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
 
-        // test wallets
+        // test WALLETs
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
         provider
@@ -985,9 +982,9 @@ mod test {
             .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
-        // Make the Executor contract (wallet is the owner)
+        // Make the Executor contract (WALLET is the owner)
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
@@ -1003,7 +1000,7 @@ mod test {
 
         // create normal flipper account.
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(flipper_init);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -1029,7 +1026,7 @@ mod test {
 
         // create normal flipper account. Using data ops
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor)
             .with_input(fb.build(true));
 
@@ -1062,9 +1059,8 @@ mod test {
             .set_extcodecopy_op(flipper1, flipper_prolog.len() as u16, 0, created_flipper_runtime.len() as u16)
             .create_op(flipper2);
 
-
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor)
             .with_input(fb.build(true));
 
