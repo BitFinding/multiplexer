@@ -411,21 +411,17 @@ mod test {
     async fn test_bob_cannot_interact() {
         // A random account can not interact with multiplexer
         let provider = ProviderBuilder::new().on_anvil();
-        let budget = BUDGET;
-        let wallet = WALLET;
-        let bob = BOB;
-
         provider
-            .anvil_set_balance(wallet, budget + U256::from(10u64.pow(18)))
+            .anvil_set_balance(WALLET, BUDGET + U256::from(10u64.pow(18)))
             .await
             .unwrap();
         provider
-            .anvil_set_balance(bob, budget + U256::from(10u64.pow(18)))
+            .anvil_set_balance(BOB, BUDGET + U256::from(10u64.pow(18)))
             .await
             .unwrap();
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
@@ -448,10 +444,10 @@ mod test {
         );
 
         let tx = TransactionRequest::default()
-            .with_from(bob)
+            .with_from(BOB)
             .with_to(executor_wallet)
             .with_nonce(1)
-            .with_value(budget);
+            .with_value(BUDGET);
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -465,21 +461,17 @@ mod test {
     #[tokio::test]
     async fn test_wallet_can_interact() {
         let provider = ProviderBuilder::new().on_anvil();
-        let budget = BUDGET;
-        let wallet = WALLET;
-        let bob = BOB;
-
         provider
-            .anvil_set_balance(wallet, budget + U256::from(10u64.pow(18)))
+            .anvil_set_balance(WALLET, BUDGET + U256::from(10u64.pow(18)))
             .await
             .unwrap();
         provider
-            .anvil_set_balance(bob, budget + U256::from(10u64.pow(18)))
+            .anvil_set_balance(BOB, BUDGET + U256::from(10u64.pow(18)))
             .await
             .unwrap();
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
@@ -499,7 +491,7 @@ mod test {
         );
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor_wallet)
             .with_nonce(1)
             .with_value(budget);
@@ -529,22 +521,18 @@ mod test {
         // test wallets
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
-        let budget = U256::from(1000e18 as u64);
-        let wallet = Address::repeat_byte(0x41);
-        let bob = Address::repeat_byte(0x42);
-
         provider
-            .anvil_set_balance(wallet, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(WALLET, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
         provider
-            .anvil_set_balance(bob, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
 
         // Make the Executor contract (wallet is the owner)
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
@@ -573,10 +561,10 @@ mod test {
                                                                          // SETDATA 01 0000 0000
                                                                          // 05
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor)
             .with_nonce(1)
-            .with_value(two_eth)
+            .with_value(TWO_ETH)
             .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -608,7 +596,7 @@ mod test {
         let fb = FlowBuilder::empty().call(weth9, &withdraw_calldata, U256::ZERO); // this should send 2 eth to weth and assign the same weth value to the executor
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor)
             .with_value(U256::ZERO)
             .with_input(fb.build(true));
@@ -648,22 +636,17 @@ mod test {
         // test wallets
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
-        let budget = BUDGET;
-        let two_eth = TWO_ETH;
-        let wallet = WALLET;
-        let bob = BOB;
-
         provider
-            .anvil_set_balance(wallet, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(WALLET, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
         provider
-            .anvil_set_balance(bob, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
         // Make the Executor contract (wallet is the owner)
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_deploy_code(EXECUTOR_INIT)
             .with_nonce(0);
 
@@ -699,9 +682,9 @@ mod test {
             );
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor)
-            .with_value(two_eth)
+            .with_value(TWO_ETH)
             .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -768,7 +751,7 @@ mod test {
         ); // this should send 2 eth to weth and assign the same weth value to the executor
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(executor)
             .with_value(two_eth)
             .with_input(fb.build(true));
@@ -828,17 +811,12 @@ mod test {
         // test wallets
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
-        let budget = U256::from(1000e18 as u64);
-        let two_eth = U256::from(2e18 as u64);
-        let wallet = Address::repeat_byte(0x41);
-        let bob = Address::repeat_byte(0x42);
-
         provider
-            .anvil_set_balance(wallet, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(WALLET, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
         provider
-            .anvil_set_balance(bob, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
 
@@ -896,9 +874,9 @@ mod test {
         let fb = FlowBuilder::empty().call(weth9, &deposit_calldata, two_eth);
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(proxy_executor)
-            .with_value(two_eth)
+            .with_value(TWO_ETH)
             .with_input(fb.build(true));
 
         let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -941,7 +919,7 @@ mod test {
         let fb = FlowBuilder::empty().call(weth9, &withdraw_calldata, U256::ZERO);
 
         let tx = TransactionRequest::default()
-            .with_from(wallet)
+            .with_from(WALLET)
             .with_to(proxy_executor)
             .with_value(U256::ZERO)
             .with_input(fb.build(true));
@@ -1001,16 +979,12 @@ mod test {
         // test wallets
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
-        let budget = U256::from(1000e18 as u64);
-        let wallet = Address::repeat_byte(0x41);
-        let bob = Address::repeat_byte(0x42);
-
         provider
-            .anvil_set_balance(wallet, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(WALLET, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
         provider
-            .anvil_set_balance(bob, budget + U256::from(1e18 as u64))
+            .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
             .await
             .unwrap();
         // Make the Executor contract (wallet is the owner)
