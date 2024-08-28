@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract ActionExecutor {
-    event LOG(string);
-    event LOGBYTES(bytes);
-    event LOGADDR(address);
-    event LOGBOOL(bool);
-
+contract executor {
     address public owner;
 
     constructor() payable { owner = msg.sender; }
@@ -14,7 +9,6 @@ contract ActionExecutor {
     receive() external payable {}
 
     fallback() external payable {
-        emit LOG("CALLBACK");
         require(msg.sender == owner); // Ownership check
         _executeActions(msg.data);
     }
@@ -31,8 +25,6 @@ contract ActionExecutor {
     }
 
     function _executeActions(bytes memory data) internal {
-        emit LOG("EXEACTIONS");
-
         uint256 offset = 0;
         address target;
         uint256 value;
@@ -44,38 +36,32 @@ contract ActionExecutor {
                 offset += 1;
 
                 if (op == Operation.CLEARDATA) {
-                    emit LOG("CLEARDATA");
-
                     uint256 size;
                     (size, offset) = _parseUint16(data, offset);
                     txData = new bytes(size);
                 } 
                 else if (op == Operation.SETDATA) {
-                    emit LOG("SETDATA");
-
                     uint256 data_offset;
-                    uint256 n;
+                    uint256 data_size;
                     (data_offset, offset) = _parseUint16(data, offset);
-                    (n, offset) = _parseUint16(data, offset);               
-                    
-                    for (uint256 i = 0; i < n; i++) {
+                    (data_size, offset) = _parseUint16(data, offset);               
+                    uint256 i;
+                    for (i = 0; i < data_size/32; i++) {
                         uint256 value_i;
                         (value_i, offset) = _parseUint256(data, offset);
                         assembly{
-                            mstore(add(add(txData, 0x20), mul(i, 0x20)), value_i)
+                            mstore(add(add(add(txData, 0x20), data_offset), mul(i, 0x20)), value_i)
                         }
                     }
+                    for (i= (data_size/32) * 32; i < data_size; i++) {
+                        txData[data_offset + i] = data[offset];
+                        offset+=1;
+                    }
                 } else if (op == Operation.SETADDR) {
-                    emit LOG("SETADDR");
-
                     (target, offset) = _parseAddress(data, offset);
                 } else if (op == Operation.SETVALUE) {
-                    emit LOG("SETVALUE");
-
                     (value, offset) =  _parseUint256(data, offset);
                 } else if (op == Operation.EXTCODECOPY) {
-                    emit LOG("EXTCODECOPY");
-
                     // address: 20-byte address of the contract to query.
                     // destOffset: byte offset in the memory where the result will be copied.
                     // offset: byte offset in the code to copy.
@@ -92,24 +78,15 @@ contract ActionExecutor {
                         extcodecopy(code_contract, add(txData, add(data_offset, 0x20)), code_offset, size)
                     }
                 } else if (op == Operation.CALL) {
-                    emit LOG("CALL");
-                    emit LOGADDR(target);
-                    emit LOGBYTES(txData);
                     bool success;
                     (success, ) = target.call{value: value}(txData);
-                    emit LOGBOOL(success);
-
                     value = 0;
-                } else if (op == Operation.CREATE) {
-                    emit LOG("CREATE");
-
+                } else if (op == Operation.CREATE) {                    
                     assembly {
                         target := create(value, add(txData, 0x20), mload(txData))
                     }
                     value = 0;
                 } else if (op == Operation.DELEGATECALL) {
-                    emit LOG("DELEGATE");
-
                     bool success;
                     (success, ) = target.delegatecall(txData);
                 }

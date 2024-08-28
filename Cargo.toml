@@ -2,11 +2,21 @@
 name = "multiplexer"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"  # You should add this line
 
 [dependencies]
-alloy = { version="0.2.1", features = ["full", "node-bindings"] }
-tokio = "1.39.3"
+alloy-primitives = { version = "0.8" }
+
+[dev-dependencies]
+tokio = { version = "1.39", features = ["rt", "macros"] }
+alloy = { version = "0.3", features = ["full", "node-bindings"] }
+
+[build-dependencies]
+hex = "0.4.3"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
 
 [lib]
 name = "multiplexer"
-path = "src/multiplexer.rs"
+path = "src/lib.rs"
+

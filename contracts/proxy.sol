@@ -1,6 +1,6 @@
 pragma solidity ^0.8.0;
 
-contract ActionExecutorProxy {
+contract proxy {
     address public owner;
     address immutable target;
     constructor(address _target, bytes memory constructorData) payable {
