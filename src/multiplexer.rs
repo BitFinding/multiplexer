@@ -356,7 +356,11 @@ mod test {
     };
     use core::str;
 
-    fn get_provider() -> AnvilProvider<RootProvider<Http<Client>>, Http<Client>> {
+    const BUDGET: U256 = U256::from(1000e18 as u64);
+    const TWO_ETH: U256 = U256::from(2e18 as u64);
+    const WALLET: Address = Address::repeat_byte(0x41);
+    const BOB: Address = Address::repeat_byte(0x42);
+    const WETH9: Address = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
         // Create a provider.
         ProviderBuilder::new().on_anvil_with_config(|anvil| {
             anvil
@@ -405,9 +409,9 @@ mod test {
     async fn test_bob_cannot_interact() {
         // A random account can not interact with multiplexer
         let provider = ProviderBuilder::new().on_anvil();
-        let budget = U256::from(1000e18 as u64);
-        let wallet = Address::repeat_byte(0x41);
-        let bob = Address::repeat_byte(0x42);
+        let budget = BUDGET;
+        let wallet = WALLET;
+        let bob = BOB;
 
         provider
             .anvil_set_balance(wallet, budget + U256::from(10u64.pow(18)))
@@ -459,9 +463,9 @@ mod test {
     #[tokio::test]
     async fn test_wallet_can_interact() {
         let provider = ProviderBuilder::new().on_anvil();
-        let budget = U256::from(1000e18 as u64);
-        let wallet = Address::repeat_byte(0x41);
-        let bob = Address::repeat_byte(0x42);
+        let budget = BUDGET;
+        let wallet = WALLET;
+        let bob = BOB;
 
         provider
             .anvil_set_balance(wallet, budget + U256::from(10u64.pow(18)))
@@ -642,10 +646,10 @@ mod test {
         // test wallets
         // 0x4141414141..4141414141  with 1001 eth
         // 0x4242424242..4242424242  with 1001 eth
-        let budget = U256::from(1000e18 as u64);
-        let two_eth = U256::from(2e18 as u64);
-        let wallet = Address::repeat_byte(0x41);
-        let bob = Address::repeat_byte(0x42);
+        let budget = BUDGET;
+        let two_eth = TWO_ETH;
+        let wallet = WALLET;
+        let bob = BOB;
 
         provider
             .anvil_set_balance(wallet, budget + U256::from(1e18 as u64))
@@ -814,9 +818,9 @@ mod test {
         let provider = get_provider();
 
         // reality check
-        let weth9 = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-        let weth9_contract = IERC20::new(weth9, provider.clone());
-        let weth_balance = provider.get_balance(weth9).await.unwrap();
+        let weth9 = WETH9;
+        let weth9_contract = IERC20::new(WETH9, provider.clone());
+        let weth_balance = provider.get_balance(WETH9).await.unwrap();
         assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
 
         // test wallets
