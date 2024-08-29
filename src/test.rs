@@ -215,18 +215,19 @@ async fn test_wallet_can_proxy_call() {
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
     assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
-    let fb = FlowBuilder::empty().call(WETH9, &bytes!(""), TWO_ETH); // this should send 2 eth to weth and assign the same weth value to the executor
-                                                                     // SETADDR 02 c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
-                                                                     // SETVALUE 03 0000000000000000000000000000000000000000000000001bc16d674ec80000
-                                                                     // CLRDATA 00 0000
-                                                                     // SETDATA 01 0000 0000
-                                                                     // 05
+    // this should send 2 eth to weth and assign the same weth value to the executor
+    // SETADDR 02 c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+    // SETVALUE 03 0000000000000000000000000000000000000000000000001bc16d674ec80000
+    // CLRDATA 00 0000
+    // SETDATA 01 0000 0000
+    // 05
+    let fb = FlowBuilder::empty().call(WETH9, &bytes!(""), TWO_ETH).build(true);
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
         .with_nonce(1)
         .with_value(TWO_ETH)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -250,13 +251,13 @@ async fn test_wallet_can_proxy_call() {
     assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
     let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
-    let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO); // this should send 2 eth to weth and assign the same weth value to the executor
+    let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO).build(true); // this should send 2 eth to weth and assign the same weth value to the executor
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
         .with_value(U256::ZERO)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     println!("TX: {:?}", tx);
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -337,13 +338,14 @@ async fn test_wallet_can_proxy_create() {
                 .call(WETH9, &vec![], TWO_ETH)
                 .build(true),
             TWO_ETH,
-        );
+        )
+        .build(true);
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
         .with_value(TWO_ETH)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -402,13 +404,13 @@ async fn test_wallet_can_proxy_create() {
         executor.create(1),
         &multiplexed_withdraw_calldata,
         U256::ZERO,
-    ); // this should send 2 eth to weth and assign the same weth value to the executor
+    ).build(true); // this should send 2 eth to weth and assign the same weth value to the executor
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
         .with_value(TWO_ETH)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
 
@@ -524,13 +526,13 @@ async fn test_wallet_can_proxy_create_ultimate() {
     // Deposit weth in the proxy account
     // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
     let deposit_calldata = [];
-    let fb = FlowBuilder::empty().call(WETH9, &deposit_calldata, TWO_ETH);
+    let fb = FlowBuilder::empty().call(WETH9, &deposit_calldata, TWO_ETH).build(true);
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(proxy_executor)
         .with_value(TWO_ETH)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
@@ -567,13 +569,13 @@ async fn test_wallet_can_proxy_create_ultimate() {
     // Whithdraw weth from the proxy account
     // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
     let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
-    let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO);
+    let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO).build(true);
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(proxy_executor)
         .with_value(U256::ZERO)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
@@ -677,13 +679,14 @@ async fn test_extcodecopy() {
     let fb = FlowBuilder::empty()
         .set_cleardata_op(flipper_init.len() as u16)
         .set_data_op(0, &flipper_init)
-        .create_op(flipper1);
+        .create_op(flipper1)
+        .build(true);
 
     // create normal flipper account. Using data ops
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
@@ -716,12 +719,13 @@ async fn test_extcodecopy() {
             0,
             created_flipper_runtime.len() as u16,
         )
-        .create_op(flipper2);
+        .create_op(flipper2)
+        .build(true);
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
-        .with_input(fb.build(true));
+        .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
