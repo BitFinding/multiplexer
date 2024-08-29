@@ -97,13 +97,7 @@ impl FlowBuilder {
     }
 
     /// Adds an `EXTCODECOPY` operation to the action list.
-    pub fn set_extcodecopy_op(
-        mut self,
-        source: Address,
-        data_offset: u16,
-        code_offset: u16,
-        size: u16,
-    ) -> Self {
+    pub fn set_extcodecopy_op(&mut self, source: Address, data_offset: u16, code_offset: u16, size: u16) -> &mut Self {
         self.actions.push(Action::ExtCodeCopy(ExtCodeCopy {
             source,
             data_offset,
@@ -114,19 +108,19 @@ impl FlowBuilder {
     }
 
     /// Adds a `SETADDR` operation to the action list.
-    pub fn set_addr_op(mut self, addr: Address) -> Self {
+    pub fn set_addr_op(&mut self, addr: Address) -> &mut Self {
         self.actions.push(Action::SetAddr(SetAddr { addr }));
         self
     }
 
     /// Adds a `SETVALUE` operation to the action list.
-    pub fn set_value_op(mut self, value: U256) -> Self {
+    pub fn set_value_op(&mut self, value: U256) -> &mut Self {
         self.actions.push(Action::SetValue(SetValue { value }));
         self
     }
 
     /// Adds a `SETDATA` operation to the action list.
-    pub fn set_data_op(mut self, offset: u16, data: &[u8]) -> Self {
+    pub fn set_data_op(&mut self, offset: u16, data: &[u8]) -> &mut Self {
         self.actions.push(Action::SetData(SetData {
             offset,
             data: data.to_owned(),
@@ -135,32 +129,31 @@ impl FlowBuilder {
     }
 
     /// Adds a `CLEARDATA` operation to the action list.
-    pub fn set_cleardata_op(mut self, size: u16) -> Self {
+    pub fn set_cleardata_op(&mut self, size: u16) -> &mut Self {
         self.actions.push(Action::ClearData(ClearData { size }));
         self
     }
 
     /// Adds a `CALL` operation to the action list.
-    pub fn call_op(mut self) -> Self {
+    pub fn call_op(&mut self) -> &mut Self {
         self.actions.push(Action::Call(Call::new()));
         self
     }
 
     /// Adds a `CREATE` operation to the action list.
-    pub fn create_op(mut self, created_address: Address) -> Self {
-        self.actions
-            .push(Action::Create(Create { created_address }));
+    pub fn create_op(&mut self, created_address: Address) -> &mut Self {
+        self.actions.push(Action::Create(Create { created_address }));
         self
     }
 
     /// Adds a `DELEGATECALL` operation to the action list.
-    pub fn delegatecall_op(mut self) -> Self {
+    pub fn delegatecall_op(&mut self) -> &mut Self {
         self.actions.push(Action::DelegateCall(DelegateCall::new()));
         self
     }
 
     /// Prepares a `CALL` operation with the specified target, data, and value.
-    pub fn call(self, target: Address, data: &[u8], value: U256) -> Self {
+    pub fn call(&mut self, target: Address, data: &[u8], value: U256) -> &mut Self {
         assert!(data.len() < u16::MAX as usize, "datalen exceeds 0xffff");
 
         self.set_addr_op(target)
@@ -171,7 +164,7 @@ impl FlowBuilder {
     }
 
     /// Prepares a `DELEGATECALL` operation with the specified target and data.
-    pub fn delegatecall(self, target: Address, data: &[u8]) -> Self {
+    pub fn delegatecall(&mut self, target: Address, data: &[u8]) -> &mut Self {
         self.set_addr_op(target)
             .set_cleardata_op(data.len() as u16)
             .set_data_op(0, data)
@@ -179,7 +172,7 @@ impl FlowBuilder {
     }
 
     /// Prepares a `CREATE` operation with the specified address, data, and value.
-    pub fn create(self, created_address: Address, data: &[u8], value: U256) -> Self {
+    pub fn create(&mut self, created_address: Address, data: &[u8], value: U256) -> &mut Self {
         self.set_value_op(value)
             .set_cleardata_op(data.len() as u16)
             .set_data_op(0, data)
@@ -187,12 +180,12 @@ impl FlowBuilder {
     }
 
     /// Builds the sequence of operations into a byte vector, optionally optimizing it.
-    pub fn build(mut self, enable_opt: bool) -> Vec<u8> {
+    pub fn build(&mut self, enable_opt: bool) -> Vec<u8> {
         let mut res = Vec::new();
         if enable_opt {
             self.peephole_opt();
         }
-        for action in self.actions {
+        for action in &self.actions {
             res.extend(&action.encode());
         }
         res
