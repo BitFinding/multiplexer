@@ -22,7 +22,7 @@ const WETH9: Address = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
 fn get_provider() -> AnvilProvider<RootProvider<Http<Client>>, Http<Client>> {
     ProviderBuilder::new().on_anvil_with_config(|anvil| {
         anvil
-            .fork(std::env::var("ETH_RPC_URL").expect("failed to retrieve RPC url from env"))
+            .fork(std::env::var("ETH_RPC_URL").expect("failed to retrieve ETH_RPC_URL url from env"))
             .fork_block_number(20000000)
     })
 }
@@ -67,7 +67,7 @@ fn test() {
         .call(addr_a, &vec![98, 99], U256::ZERO)
         .delegatecall(addr_b, &vec![70, 71])
         .build(true);
-    assert_eq!(calldata, hex!("03000000000000000000000000000000000000000000000000000000000000000a00000401000000044c414c410602414141414141414141414141414141414141414100000201000000026263050242424242424242424242424242424242424242420100000002464707"));
+    assert_eq!(calldata, hex!("c94f554d03000000000000000000000000000000000000000000000000000000000000000a00000401000000044c414c410602414141414141414141414141414141414141414100000201000000026263050242424242424242424242424242424242424242420100000002464707"));
 }
 
 #[tokio::test]

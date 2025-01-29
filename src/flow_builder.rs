@@ -182,6 +182,10 @@ impl FlowBuilder {
     /// Builds the sequence of operations into a byte vector, optionally optimizing it.
     pub fn build(&mut self, enable_opt: bool) -> Vec<u8> {
         let mut res = Vec::new();
+        // ======= executor.sol:executor =======
+        // Function signatures:
+        // c94f554d: executeActions()
+        res.extend_from_slice(&[0xc9, 0x4f, 0x55, 0x4d]);
         if enable_opt {
             self.peephole_opt();
         }
