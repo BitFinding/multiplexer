@@ -283,7 +283,7 @@ async fn test_wallet_can_proxy_call() {
 }
 
 #[tokio::test]
-async fn test_wallet_can_proxy_create() {
+async fn test_wallet_can_proxy_create_small() {
     let provider = get_provider();
 
     // reality check
@@ -297,6 +297,10 @@ async fn test_wallet_can_proxy_create() {
         .anvil_set_balance(WALLET, BUDGET + U256::from(1e18 as u64))
         .await
         .unwrap();
+
+    let wallet_balance = provider.get_balance(WALLET).await.unwrap();
+    assert_eq!(wallet_balance, BUDGET + U256::from(1e18 as u64)); // executor shoud shave sent the value to WETH9
+
     provider
         .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
         .await
@@ -359,8 +363,8 @@ async fn test_wallet_can_proxy_create() {
 
     assert!(receipt.status());
 
-    let account_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(account_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    let executor_balance = provider.get_balance(executor).await.unwrap();
+    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
     assert_eq!(
         address!("c84f9705070281e8c800c57d92dbab053a80a2d0"),
         executor.create(1)
@@ -376,21 +380,21 @@ async fn test_wallet_can_proxy_create() {
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
     assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
-    // Proxy crested via executor that points to the executor ?? ?AHHH
+    // Proxy created via executor that points to the executor ?? ?AHHH
     // 0 eth
     // 2 weth
 
-    let executor_balance = provider.get_balance(executor.create(1)).await.unwrap();
-    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    let proxy_balance = provider.get_balance(executor.create(1)).await.unwrap();
+    assert_eq!(proxy_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
 
     let weth9_contract = IERC20::new(WETH9, provider.clone());
-    let executor_weth_balance = weth9_contract
+    let proxy_weth_balance = weth9_contract
         .balanceOf(executor.create(1))
         .call()
         .await
         .unwrap()
         ._0;
-    assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
+    assert_eq!(proxy_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
 
     // Test ownership in the created proxy
     // WALLET -> executor -> proxy mint some weth
@@ -409,7 +413,7 @@ async fn test_wallet_can_proxy_create() {
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
-        .with_value(TWO_ETH)
+        .with_value(U256::ZERO)
         .with_input(fb);
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
@@ -425,30 +429,30 @@ async fn test_wallet_can_proxy_create() {
     assert!(receipt.status());
 
     // Executor has
-    // 2 eth
-    // 0 weth
-    let executor_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(executor_balance, TWO_ETH); // executor shoud shave sent the value to WETH9
-
-    let weth9_contract = IERC20::new(WETH9, provider.clone());
-    let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
-    assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
-
-    // Proxy created via executor that points to the executor ?? ?AHHH
     // 0 eth
     // 0 weth
-
-    let executor_balance = provider.get_balance(executor.create(1)).await.unwrap();
+    let executor_balance = provider.get_balance(executor).await.unwrap();
     assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
 
     let weth9_contract = IERC20::new(WETH9, provider.clone());
-    let executor_weth_balance = weth9_contract
+    let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap()._0;
+    assert_eq!(executor_weth_balance, U256::ZERO);
+
+    // Proxy created via executor that points to the executor ?? ?AHHH
+    // 2 eth
+    // 0 weth
+
+    let proxy_balance = provider.get_balance(executor.create(1)).await.unwrap();
+    assert_eq!(proxy_balance, TWO_ETH); // executor shoud shave sent the value to WETH9
+
+    let weth9_contract = IERC20::new(WETH9, provider.clone());
+    let proxy_weth_balance = weth9_contract
         .balanceOf(executor.create(1))
         .call()
         .await
         .unwrap()
         ._0;
-    assert_eq!(executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
+    assert_eq!(proxy_weth_balance, U256::ZERO); 
 
     // bob -> executor -> ?? :fail:
     // bob -> proxy  :fail:
@@ -596,17 +600,17 @@ async fn test_wallet_can_proxy_create_ultimate() {
     assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
 
     // Proxy(Executor) account has 2 weth
-    // 0 eth
-    // 2 weth
+    // 2 eth
+    // 0 weth
     let proxy_executor_balance = provider.get_balance(proxy_executor).await.unwrap();
-    assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(proxy_executor_balance, TWO_ETH);
     let proxy_executor_weth_balance = weth9_contract
         .balanceOf(proxy_executor)
         .call()
         .await
         .unwrap()
         ._0;
-    assert_eq!(proxy_executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
+    assert_eq!(proxy_executor_weth_balance, U256::ZERO);
 }
 
 #[tokio::test]

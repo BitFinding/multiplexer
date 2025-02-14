@@ -1,7 +1,7 @@
 use alloy_primitives::{Address, U256};
 
 use crate::opcodes::{
-    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue,
+    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue, SetFail, ClearFail,
 };
 
 // Enum for all opcode actions
@@ -14,6 +14,8 @@ enum Action {
     Call(Call),
     Create(Create),
     DelegateCall(DelegateCall),
+    SetFail(SetFail),
+    ClearFail(ClearFail),
 }
 
 impl Action {
@@ -27,6 +29,8 @@ impl Action {
             Action::Call(c) => c.encode(),
             Action::Create(c) => c.encode(),
             Action::DelegateCall(dc) => dc.encode(),
+            Action::SetFail(sf) => sf.encode(),
+            Action::ClearFail(cf) => cf.encode(),
         }
     }
 }
@@ -49,9 +53,27 @@ impl FlowBuilder {
         let mut last_value = U256::ZERO;
         let mut last_target = Address::ZERO;
         let mut last_data: Vec<u8> = Vec::new();
+        let mut last_fail = false;
 
         for (idx, action) in self.actions.iter().enumerate() {
             let to_remove = match action {
+                Action::SetFail(_) => {
+                    if last_fail {
+                        true
+                    } else {
+                        last_fail = true;
+                        false
+                    }
+                }
+                Action::ClearFail(_) => {
+                    if last_fail {
+                        last_fail = false;
+                        false
+                    } else {
+                        true
+                    }
+
+                }
                 Action::Call(_) => {
                     last_value = U256::ZERO;
                     false
@@ -177,6 +199,18 @@ impl FlowBuilder {
             .set_cleardata_op(data.len() as u16)
             .set_data_op(0, data)
             .create_op(created_address)
+    }
+
+    /// Prepares a `SETFAIL` operation.
+    pub fn setfail(&mut self) -> &mut Self {
+        self.actions.push(Action::SetFail(SetFail::new()));
+        self
+    }
+
+    /// Prepares a `CLEARFAIL` operation.
+    pub fn clearfail(&mut self) -> &mut Self {
+        self.actions.push(Action::ClearFail(ClearFail::new()));
+        self
     }
 
     /// Builds the sequence of operations into a byte vector, optionally optimizing it.

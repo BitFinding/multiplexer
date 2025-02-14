@@ -19,7 +19,9 @@ contract executor {
         CALL,
         CREATE, 
         DELEGATECALL,
-        SETCALLBACK
+        SETCALLBACK,
+        SETFAIL,
+        CLEARFAIL
     }
 
     // Morpho
@@ -72,6 +74,7 @@ contract executor {
         uint256 offset = 0;
         address target;
         uint256 value;
+        bool fail = false;
         bytes memory txData;
         require(tx.origin == owner); // Ownership check via
 
@@ -125,6 +128,9 @@ contract executor {
                 } else if (op == Action.CALL) {
                     bool success;
                     (success, ) = target.call{value: value}(txData);
+                    if (fail) {
+                        require(success, "CALL_FAILED");
+                    }
                     value = 0;
                 } else if (op == Action.CREATE) {                    
                     assembly {
@@ -134,8 +140,15 @@ contract executor {
                 } else if (op == Action.DELEGATECALL) {
                     bool success;
                     (success, ) = target.delegatecall(txData);
+                    if (fail) {
+                        require(success, "DELCALL_FAILED");
+                    }
                 } else if (op == Action.SETCALLBACK) {
                     (callbackAddress, offset) = _parseAddress(data, offset);
+                } else if (op == Action.SETFAIL) {
+                    fail = true;
+                } else if (op == Action.CLEARFAIL) {
+                    fail = false;
                 }
 
             }

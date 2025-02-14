@@ -9,6 +9,9 @@ pub const OP_EXTCODECOPY: u8 = 0x04;
 pub const OP_CALL: u8 = 0x05;
 pub const OP_CREATE: u8 = 0x06;
 pub const OP_DELEGATECALL: u8 = 0x07;
+pub const OP_SETFAIL: u8 = 0x08;
+pub const OP_CLEARFAIL: u8 = 0x09;
+
 
 // Struct for the CLEARDATA operation
 pub struct ClearData {
@@ -158,5 +161,34 @@ impl DelegateCall {
 
     pub fn encode(&self) -> Vec<u8> {
         vec![OP_DELEGATECALL] // Opcode
+    }
+}
+
+
+// Struct for the SETFAIL operation
+#[derive(Default)]
+pub struct SetFail {}
+
+impl SetFail {
+    pub fn new() -> Self {
+        SetFail {}
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        vec![OP_SETFAIL] // Opcode
+    }
+}
+
+// Struct for the CLEARFAIL operation
+#[derive(Default)]
+pub struct ClearFail {}
+
+impl ClearFail {
+    pub fn new() -> Self {
+        ClearFail {}
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        vec![OP_CLEARFAIL] // Opcode
     }
 }
