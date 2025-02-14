@@ -1,7 +1,7 @@
 use alloy_primitives::{Address, U256};
 
 use crate::opcodes::{
-    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue, SetFail, ClearFail,
+    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue, SetCallback, SetFail, ClearFail,
 };
 
 // Enum for all opcode actions
@@ -16,6 +16,7 @@ enum Action {
     DelegateCall(DelegateCall),
     SetFail(SetFail),
     ClearFail(ClearFail),
+    SetCallback(SetCallback)
 }
 
 impl Action {
@@ -31,6 +32,7 @@ impl Action {
             Action::DelegateCall(dc) => dc.encode(),
             Action::SetFail(sf) => sf.encode(),
             Action::ClearFail(cf) => cf.encode(),
+            Action::SetCallback(scb) => scb.encode(),
         }
     }
 }
@@ -72,7 +74,6 @@ impl FlowBuilder {
                     } else {
                         true
                     }
-
                 }
                 Action::Call(_) => {
                     last_value = U256::ZERO;
@@ -201,31 +202,47 @@ impl FlowBuilder {
             .create_op(created_address)
     }
 
+    /// prepare set callback
+    pub fn set_callback(&mut self, callback_address: Address) -> &mut Self {
+        self.actions.push(Action::SetCallback(SetCallback::new(callback_address)));
+        self
+    }
+
     /// Prepares a `SETFAIL` operation.
-    pub fn setfail(&mut self) -> &mut Self {
+    pub fn set_fail(&mut self) -> &mut Self {
         self.actions.push(Action::SetFail(SetFail::new()));
         self
     }
 
     /// Prepares a `CLEARFAIL` operation.
-    pub fn clearfail(&mut self) -> &mut Self {
+    pub fn clear_fail(&mut self) -> &mut Self {
         self.actions.push(Action::ClearFail(ClearFail::new()));
         self
     }
 
+    /// Optimizes the sequence of operations.
+    pub fn optimize(&mut self) -> &mut Self {
+        self.peephole_opt();
+        self
+    }
+
     /// Builds the sequence of operations into a byte vector, optionally optimizing it.
-    pub fn build(&mut self, enable_opt: bool) -> Vec<u8> {
+   pub fn build_raw(&mut self) -> Vec<u8> {
         let mut res = Vec::new();
-        // ======= executor.sol:executor =======
-        // Function signatures:
-        // c94f554d: executeActions()
-        res.extend_from_slice(&[0xc9, 0x4f, 0x55, 0x4d]);
-        if enable_opt {
-            self.peephole_opt();
-        }
         for action in &self.actions {
             res.extend(&action.encode());
         }
+        res
+    }
+
+
+    /// Builds the sequence of operations into a byte vector, optionally optimizing it.
+    pub fn build(&mut self) -> Vec<u8> {
+        // ======= executor.sol:executor =======
+        // Function signatures:
+        // c94f554d: executeActions()
+        let mut res = vec![0xc9, 0x4f, 0x55, 0x4d];
+        res.extend(self.build_raw());
         res
     }
 }

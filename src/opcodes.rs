@@ -1,16 +1,18 @@
 use alloy_primitives::{Address, U256};
 
 // Operation opcodes as constants
-pub const OP_CLEARDATA: u8 = 0x00;
-pub const OP_SETDATA: u8 = 0x01;
-pub const OP_SETADDR: u8 = 0x02;
-pub const OP_SETVALUE: u8 = 0x03;
-pub const OP_EXTCODECOPY: u8 = 0x04;
-pub const OP_CALL: u8 = 0x05;
-pub const OP_CREATE: u8 = 0x06;
-pub const OP_DELEGATECALL: u8 = 0x07;
-pub const OP_SETFAIL: u8 = 0x08;
-pub const OP_CLEARFAIL: u8 = 0x09;
+pub const OP_EOF: u8 = 0x00;
+pub const OP_CLEARDATA: u8 = 0x01;
+pub const OP_SETDATA: u8 = 0x02;
+pub const OP_SETADDR: u8 = 0x03;
+pub const OP_SETVALUE: u8 = 0x04;
+pub const OP_EXTCODECOPY: u8 = 0x05;
+pub const OP_CALL: u8 = 0x06;
+pub const OP_CREATE: u8 = 0x07;
+pub const OP_DELEGATECALL: u8 = 0x08;
+pub const OP_SETCALLBACK: u8 = 0x09;
+pub const OP_SETFAIL: u8 = 0x0a;
+pub const OP_CLEARFAIL: u8 = 0x0b;
 
 
 // Struct for the CLEARDATA operation
@@ -164,6 +166,23 @@ impl DelegateCall {
     }
 }
 
+// Struct for the SETCALLBACK operation
+#[derive(Default)]
+pub struct SetCallback {
+    pub callback_address: Address
+}
+
+impl SetCallback {
+    pub fn new(callback_address: Address) -> Self {
+        SetCallback {callback_address}
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut encoded = vec![OP_SETCALLBACK]; // Opcode
+        encoded.extend(&self.callback_address); // Offset
+        encoded
+    }
+}
 
 // Struct for the SETFAIL operation
 #[derive(Default)]
@@ -192,3 +211,4 @@ impl ClearFail {
         vec![OP_CLEARFAIL] // Opcode
     }
 }
+

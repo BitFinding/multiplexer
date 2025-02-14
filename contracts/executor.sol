@@ -11,6 +11,7 @@ contract executor {
     fallback() external payable {}
 
     enum Action {
+        EOF,
         CLEARDATA, 
         SETDATA, 
         SETADDR, 
@@ -24,10 +25,21 @@ contract executor {
         CLEARFAIL
     }
 
+    function _onCallback(uint256 calldata_offset) internal{
+        require(msg.sender == callbackAddress);
+        callbackAddress = address(0);
+        _executeActions(calldata_offset);
+    }
+
     // Morpho
     function onMorphoFlashLoan(uint256 amount, bytes calldata data) external{
-        this.onFlashLoan(msg.sender, address(0), amount, 0, data);
+        // uint256 calldata_offset;
+        // assembly {
+        //     calldata_offset := add(4, add(32, calldataload(add(4, mul(1, 32)))))
+        // }
+        _onCallback(100);
     }
+
     // Aave
     function executeOperation(
         address asset,
@@ -36,7 +48,11 @@ contract executor {
         address initiator,
         bytes calldata params
     ) external returns (bool){
-        this.onFlashLoan(initiator, asset, amount, premium, params);
+        uint256 calldata_offset;
+        // assembly {
+        //     calldata_offset :=  add(4, add(32, calldataload(add(4, mul(4, 32)))))
+        // }
+        _onCallback(196);
         return true;
     }
 
@@ -49,19 +65,17 @@ contract executor {
     //  @param data Arbitrary data structure, intended to contain user-defined parameters.
     //  @return The keccak256 hash of "ERC3156FlashBorrower.onFlashLoan"
     function onFlashLoan(
-        address /*initiator*/,
-        address /*token*/,
-        uint256 /*amount*/,
-        uint256 /*fee*/,
+        address initiator,
+        address token,
+        uint256 amount,
+        uint256 fee,
         bytes calldata /*data*/
     ) external returns (bytes32){
-        require(msg.sender == callbackAddress);
-        callbackAddress = address(0);
         uint256 calldata_offset;
         assembly {
-            calldata_offset := add(32, calldataload(add(4, mul(4, 32))))
+            calldata_offset :=  add(4, add(32, calldataload(add(4, mul(4, 32)))))
         }
-        _executeActions(calldata_offset);
+        _onCallback(calldata_offset);
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 
@@ -83,7 +97,10 @@ contract executor {
                 Action op = Action(uint8(data[offset]));
                 offset += 1;
 
-                if (op == Action.CLEARDATA) {
+                if (op == Action.EOF) {
+                    break;
+                }
+                else if (op == Action.CLEARDATA) {
                     uint256 size;
                     (size, offset) = _parseUint16(data, offset);
                     txData = new bytes(size);
@@ -184,5 +201,4 @@ contract executor {
         uint256 value = uint256(uint8(data[offset])) << 8 | uint256(uint8(data[offset + 1]));
         return (value, offset + 2);
     }
-
 }
