@@ -1,7 +1,7 @@
 use alloy_primitives::{Address, U256};
 
 use crate::opcodes::{
-    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue,
+    Call, ClearData, Create, DelegateCall, ExtCodeCopy, SetAddr, SetData, SetValue, SetCallback, SetFail, ClearFail,
 };
 
 // Enum for all opcode actions
@@ -14,6 +14,9 @@ enum Action {
     Call(Call),
     Create(Create),
     DelegateCall(DelegateCall),
+    SetFail(SetFail),
+    ClearFail(ClearFail),
+    SetCallback(SetCallback)
 }
 
 impl Action {
@@ -27,6 +30,9 @@ impl Action {
             Action::Call(c) => c.encode(),
             Action::Create(c) => c.encode(),
             Action::DelegateCall(dc) => dc.encode(),
+            Action::SetFail(sf) => sf.encode(),
+            Action::ClearFail(cf) => cf.encode(),
+            Action::SetCallback(scb) => scb.encode(),
         }
     }
 }
@@ -49,9 +55,26 @@ impl FlowBuilder {
         let mut last_value = U256::ZERO;
         let mut last_target = Address::ZERO;
         let mut last_data: Vec<u8> = Vec::new();
+        let mut last_fail = false;
 
         for (idx, action) in self.actions.iter().enumerate() {
             let to_remove = match action {
+                Action::SetFail(_) => {
+                    if last_fail {
+                        true
+                    } else {
+                        last_fail = true;
+                        false
+                    }
+                }
+                Action::ClearFail(_) => {
+                    if last_fail {
+                        last_fail = false;
+                        false
+                    } else {
+                        true
+                    }
+                }
                 Action::Call(_) => {
                     last_value = U256::ZERO;
                     false
@@ -179,15 +202,47 @@ impl FlowBuilder {
             .create_op(created_address)
     }
 
+    /// prepare set callback
+    pub fn set_callback(&mut self, callback_address: Address) -> &mut Self {
+        self.actions.push(Action::SetCallback(SetCallback::new(callback_address)));
+        self
+    }
+
+    /// Prepares a `SETFAIL` operation.
+    pub fn set_fail(&mut self) -> &mut Self {
+        self.actions.push(Action::SetFail(SetFail::new()));
+        self
+    }
+
+    /// Prepares a `CLEARFAIL` operation.
+    pub fn clear_fail(&mut self) -> &mut Self {
+        self.actions.push(Action::ClearFail(ClearFail::new()));
+        self
+    }
+
+    /// Optimizes the sequence of operations.
+    pub fn optimize(&mut self) -> &mut Self {
+        self.peephole_opt();
+        self
+    }
+
     /// Builds the sequence of operations into a byte vector, optionally optimizing it.
-    pub fn build(&mut self, enable_opt: bool) -> Vec<u8> {
+   pub fn build_raw(&mut self) -> Vec<u8> {
         let mut res = Vec::new();
-        if enable_opt {
-            self.peephole_opt();
-        }
         for action in &self.actions {
             res.extend(&action.encode());
         }
+        res
+    }
+
+
+    /// Builds the sequence of operations into a byte vector, optionally optimizing it.
+    pub fn build(&mut self) -> Vec<u8> {
+        // ======= executor.sol:executor =======
+        // Function signatures:
+        // c94f554d: executeActions()
+        let mut res = vec![0xc9, 0x4f, 0x55, 0x4d];
+        res.extend(self.build_raw());
         res
     }
 }
