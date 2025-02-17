@@ -99,33 +99,6 @@ contract executor {
 
 
     /**
-     * @notice ERC3156 flash loan callback handler
-     * @dev Implements the ERC3156 flash loan receiver interface
-     * @param initiator The initiating address of the flash loan
-     * @param token The address of the flash-borrowed token
-     * @param amount The amount of tokens borrowed
-     * @param fee The fee to be paid for the flash loan
-     * @param data Additional parameters (unused but required by interface)
-     * @return Returns the ERC3156 flash loan receiver selector
-     * @custom:security Uses inline assembly for efficient calldata parsing
-     */
-    function onFlashLoan(
-        address initiator,
-        address token,
-        uint256 amount,
-        uint256 fee,
-        bytes calldata data
-    ) external returns (bytes32) {
-        uint256 calldata_offset;
-        // Calculate offset: function selector (4) + 32 + position of data parameter (4*32)
-        assembly {
-            calldata_offset := add(4, add(32, calldataload(add(4, mul(4, 32)))))
-        }
-        _onCallback(calldata_offset);
-        return keccak256("ERC3156FlashBorrower.onFlashLoan");
-    }
-
-    /**
      * @notice Main entry point for executing a series of actions
      * @dev Payable to allow receiving ETH for operations
      */
