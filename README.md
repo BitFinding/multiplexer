@@ -9,6 +9,8 @@
   A flexible smart contract system for executing complex transaction sequences
 </div>
 
+> ⚠️ **WARNING**: This contract has not been audited. Using this contract with real assets could result in permanent loss of funds. Use at your own risk.
+
 ## 🚀 Quick Start
 
 ```bash
