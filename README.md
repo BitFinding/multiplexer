@@ -1,4 +1,27 @@
-# Executor Contract
+<div align="center">
+  <img src=".github/assets/logo.png" alt="Executor Contract Logo" width="200"/>
+  
+  # Multiplexer
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Rust](https://github.com/BitFinding/multiplexer/actions/workflows/rust.yml/badge.svg)](https://github.com/BitFinding/multiplexer/actions/workflows/rust.yml)
+  
+  A flexible smart contract system for executing complex transaction sequences
+</div>
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/BitFinding/multiplexer.git
+cd multiplexer
+
+# Install dependencies
+cargo build
+
+# Run tests
+ETH_RPC_URL=http://192.168.1.249:8545 cargo test
+```
 
 A flexible smart contract system for executing complex transaction sequences, including flash loan operations. The system consists of a main executor contract that can process a series of actions encoded as bytecode instructions.
 
