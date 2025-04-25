@@ -5,6 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/multiplexer-evm.svg)](https://crates.io/crates/multiplexer-evm)
+[![docs.rs](https://img.shields.io/docsrs/multiplexer-evm)](https://docs.rs/multiplexer-evm)
 [![Rust](https://github.com/BitFinding/multiplexer/actions/workflows/rust.yml/badge.svg)](https://github.com/BitFinding/multiplexer/actions/workflows/rust.yml)
 
 Originally developed as an internal MEV launchpad, Multiplexer is now open-sourced. It provides a flexible smart contract system for executing complex transaction sequences, featuring a Solidity executor contract and a Rust library for building execution flows.
