@@ -32,6 +32,11 @@ fn build_get_json(source: &str) -> SolJsonOut {
 
 // Example custom build script.
 fn main() {
+    // Abort if inside docs.rs
+    if env::var("DOCS_RS").is_ok() {
+        return;
+    }
+
     // Tell Cargo that if the given file changes, to rerun this build script.
     println!("cargo::rerun-if-changed=contracts/executor.sol");
     println!("cargo::rerun-if-changed=contracts/proxy.sol");
