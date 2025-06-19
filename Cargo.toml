@@ -13,7 +13,7 @@ categories = ["cryptography::cryptocurrencies", "development-tools::build-utils"
 readme = "README.md"
 
 [dependencies]
-alloy-primitives = { version = "1.0" }
+alloy-primitives = { version = "0.8", features = ["serde"]  }
 
 [dev-dependencies]
 tokio = { version = "1.44", features = ["rt", "macros"] }
