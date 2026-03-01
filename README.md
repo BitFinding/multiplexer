@@ -45,14 +45,14 @@ This example demonstrates how to construct the bytecode for a Morpho flash loan 
 
 ```rust
 use alloy::{
-    primitives::{address, uint, Address, Bytes, U256, hex},
+    primitives::{address, uint, Address, U256, hex},
     sol,
-    sol_types::{SolCall},
+    sol_types::SolCall,
 };
-use multiplexer::FlowBuilder;
+use multiplexer_evm::FlowBuilder;
 
 // Define necessary constants
-const ONEHUNDRED_ETH: U256 = uint!(100000000000000000000_U256); // 100e18
+const HUNDRED_ETH: U256 = uint!(100000000000000000000_U256); // 100e18
 const WETH9: Address = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
 const MORPHO: Address = address!("BBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb");
 
@@ -74,9 +74,9 @@ fn generate_morpho_flashloan_flow() -> Vec<u8> {
     // It needs to ensure Morpho can pull the funds back.
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH, // Approve the exact loan amount.
-                               // Note: A real flash loan requires approving amount + fee.
-                               // The executor must hold sufficient WETH *before* this approval runs.
+        value: HUNDRED_ETH, // Approve the exact loan amount.
+                            // Note: A real flash loan requires approving amount + fee.
+                            // The executor must hold sufficient WETH *before* this approval runs.
     }.abi_encode();
 
     let inner_flow_bytes = FlowBuilder::empty()
@@ -89,7 +89,7 @@ fn generate_morpho_flashloan_flow() -> Vec<u8> {
     // This is the main flow sent to the executor contract transaction.
     let flashloan_calldata = IMorpho::flashLoanCall {
         token: WETH9,                  // Asset to borrow
-        assets: ONEHUNDRED_ETH,        // Amount to borrow
+        assets: HUNDRED_ETH,        // Amount to borrow
         data: inner_flow_bytes.into(), // Pass the repayment flow as callback data
     }.abi_encode();
 

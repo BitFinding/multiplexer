@@ -16,8 +16,8 @@ readme = "README.md"
 alloy-primitives = { version = "1.5.2" }
 
 [dev-dependencies]
-tokio = { version = "1.44", features = ["rt", "macros"] }
-alloy = { version = "1.2.1", features = ["full", "node-bindings"] }
+tokio = { version = "1", features = ["rt", "macros"] }
+alloy = { version = "1.7", features = ["full", "node-bindings"] }
 
 [build-dependencies]
 hex = "0.4.3"
