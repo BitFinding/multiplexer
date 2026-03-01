@@ -1,42 +1,25 @@
-
 use crate::{FlowBuilder, DELEGATE_PROXY_INIT, EXECUTOR_INIT};
 use alloy::{
     hex,
-    network::TransactionBuilder, // Added Ethereum
+    network::{Ethereum, TransactionBuilder},
     primitives::{address, bytes, uint, Address, U256},
-    // Removed EthereumSigner, node_bindings::Anvil
-    providers::{
-        ext::AnvilApi,
-        fillers::{BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller}, // Corrected filler paths
-        layers::AnvilProvider,
-        Identity, Provider, ProviderBuilder, RootProvider,
-    },
+    providers::{ext::AnvilApi, Provider, ProviderBuilder},
     rpc::types::TransactionRequest,
     sol,
     sol_types::{SolCall, SolConstructor},
 };
-use core::str;
-
-// Type alias for the complex provider type using LocalWallet as signer
-type AnvilTestProvider = FillProvider<
-    JoinFill<
-        Identity,
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>
-        >,
-    AnvilProvider<RootProvider>,
->;
 
 // Constants
 const BUDGET: U256 = uint!(1000000000000000000000_U256); // 1000e18
 const TWO_ETH: U256 = uint!(2000000000000000000_U256); // 2e18
-const ONEHUNDRED_ETH: U256 = uint!(10000000000000000000_U256);
+const TEN_ETH: U256 = uint!(10000000000000000000_U256); // 10e18
 const WALLET: Address = Address::repeat_byte(0x41);
 const BOB: Address = Address::repeat_byte(0x42);
 const WETH9: Address = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
 const MORPHO: Address = address!("BBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb");
 
 // Test helpers
-async fn setup_provider() -> AnvilTestProvider {
+async fn setup_provider() -> impl Provider + AnvilApi<Ethereum> + Clone {
     let provider = get_provider();
     provider
         .anvil_set_balance(WALLET, BUDGET + U256::from(10u64.pow(18)))
@@ -49,7 +32,7 @@ async fn setup_provider() -> AnvilTestProvider {
     provider
 }
 
-async fn deploy_executor(provider: &AnvilTestProvider) -> Address {
+async fn deploy_executor(provider: &(impl Provider + AnvilApi<Ethereum>)) -> Address {
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_deploy_code(EXECUTOR_INIT)
@@ -65,10 +48,13 @@ async fn deploy_executor(provider: &AnvilTestProvider) -> Address {
     assert!(receipt.status());
     receipt.contract_address.unwrap()
 }
-fn get_provider() -> AnvilTestProvider {
-    ProviderBuilder::new().on_anvil_with_config(|anvil| {
+
+fn get_provider() -> impl Provider + AnvilApi<Ethereum> + Clone {
+    ProviderBuilder::new().connect_anvil_with_config(|anvil| {
         anvil
-            .fork(std::env::var("ETH_RPC_URL").expect("failed to retrieve ETH_RPC_URL url from env"))
+            .fork(
+                std::env::var("ETH_RPC_URL").expect("failed to retrieve ETH_RPC_URL url from env"),
+            )
             .fork_block_number(20_000_000)
     })
 }
@@ -106,7 +92,30 @@ sol! {
 sol! {
     interface IMorpho {
         function flashLoan(address token, uint256 assets, bytes calldata data) external;
-    }      
+    }
+}
+
+#[test]
+fn test_execute_actions_selector() {
+    // Verify the hardcoded selector in FlowBuilder matches the keccak256 of the signature
+    use alloy::primitives::keccak256;
+    let hash = keccak256("executeActions()");
+    let expected_selector = &hash[..4];
+    let built = FlowBuilder::empty().build();
+    assert_eq!(
+        &built[..4],
+        expected_selector,
+        "selector drift: update EXECUTE_ACTIONS_SELECTOR"
+    );
+}
+
+#[test]
+fn test_flow_builder_max_data_length() {
+    // Verify that data of exactly u16::MAX bytes is accepted (off-by-one regression guard)
+    let data = vec![0xABu8; u16::MAX as usize];
+    let addr = Address::repeat_byte(0x01);
+    // Should not panic
+    let _calldata = FlowBuilder::empty().call(addr, &data, U256::ZERO).build();
 }
 
 #[test]
@@ -166,7 +175,7 @@ fn test_flow_builder_combined_operations() {
 #[tokio::test]
 async fn test_bob_cannot_interact() {
     // A random account can not interact with multiplexer
-    let provider = ProviderBuilder::new().on_anvil();
+    let provider = ProviderBuilder::new().connect_anvil();
     provider
         .anvil_set_balance(WALLET, BUDGET + U256::from(10u64.pow(18)))
         .await
@@ -216,7 +225,7 @@ async fn test_bob_cannot_interact() {
 
 #[tokio::test]
 async fn test_wallet_can_interact() {
-    let provider = ProviderBuilder::new().on_anvil();
+    let provider = ProviderBuilder::new().connect_anvil();
     provider
         .anvil_set_balance(WALLET, BUDGET + U256::from(10u64.pow(18)))
         .await
@@ -268,7 +277,7 @@ async fn test_wallet_can_interact() {
 async fn test_weth_deposit_through_executor() {
     let provider = setup_provider().await;
     let executor = deploy_executor(&provider).await;
-    
+
     // Initial balance check
     let executor_balance = provider.get_balance(executor).await.unwrap();
     let weth9_contract = IERC20::new(WETH9, provider.clone());
@@ -277,7 +286,10 @@ async fn test_weth_deposit_through_executor() {
     assert_eq!(executor_weth_balance, U256::ZERO);
 
     // Deposit ETH to get WETH
-    let fb = FlowBuilder::empty().call(WETH9, &bytes!(""), TWO_ETH).optimize().build();
+    let fb = FlowBuilder::empty()
+        .call(WETH9, &bytes!(""), TWO_ETH)
+        .optimize()
+        .build();
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
@@ -286,7 +298,11 @@ async fn test_weth_deposit_through_executor() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 
     // Verify balances after deposit
@@ -300,9 +316,12 @@ async fn test_weth_deposit_through_executor() {
 async fn test_weth_withdraw_through_executor() {
     let provider = setup_provider().await;
     let executor = deploy_executor(&provider).await;
-    
+
     // First deposit WETH
-    let fb = FlowBuilder::empty().call(WETH9, &bytes!(""), TWO_ETH).optimize().build();
+    let fb = FlowBuilder::empty()
+        .call(WETH9, &bytes!(""), TWO_ETH)
+        .optimize()
+        .build();
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
@@ -310,10 +329,13 @@ async fn test_weth_withdraw_through_executor() {
         .with_input(fb);
     let _tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    
+
     // Then withdraw it back to ETH
     let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
-    let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO).optimize().build();
+    let fb = FlowBuilder::empty()
+        .call(WETH9, &withdraw_calldata, U256::ZERO)
+        .optimize()
+        .build();
     let tx = TransactionRequest::default()
         .with_from(WALLET)
         .with_to(executor)
@@ -321,7 +343,11 @@ async fn test_weth_withdraw_through_executor() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 
     // Verify final balances
@@ -338,7 +364,7 @@ async fn test_wallet_can_proxy_create_small() {
 
     // reality check
     let weth_balance = provider.get_balance(WETH9).await.unwrap();
-    assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
+    assert_eq!(format!("{}", weth_balance), "2933633723194923479377016"); // sanity check fork state
 
     // test WALLETs
     // 0x4141414141..4141414141  with 1001 eth
@@ -349,7 +375,7 @@ async fn test_wallet_can_proxy_create_small() {
         .unwrap();
 
     let wallet_balance = provider.get_balance(WALLET).await.unwrap();
-    assert_eq!(wallet_balance, BUDGET + U256::from(1e18 as u64)); // executor shoud shave sent the value to WETH9
+    assert_eq!(wallet_balance, BUDGET + U256::from(1e18 as u64));
 
     provider
         .anvil_set_balance(BOB, BUDGET + U256::from(1e18 as u64))
@@ -390,10 +416,12 @@ async fn test_wallet_can_proxy_create_small() {
             executor.create(1),
             &FlowBuilder::empty()
                 .call(WETH9, &vec![], TWO_ETH)
-                .optimize().build(),
+                .optimize()
+                .build(),
             TWO_ETH,
         )
-        .optimize().build();
+        .optimize()
+        .build();
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
@@ -414,7 +442,7 @@ async fn test_wallet_can_proxy_create_small() {
     assert!(receipt.status());
 
     let executor_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(executor_balance, U256::ZERO); // ETH was forwarded to proxy
     assert_eq!(
         address!("c84f9705070281e8c800c57d92dbab053a80a2d0"),
         executor.create(1)
@@ -424,18 +452,17 @@ async fn test_wallet_can_proxy_create_small() {
     // 0 eth
     // 0 weth
     let executor_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(executor_balance, U256::ZERO);
 
     let weth9_contract = IERC20::new(WETH9, provider.clone());
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap();
-    assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
+    assert_eq!(executor_weth_balance, U256::ZERO);
 
-    // Proxy created via executor that points to the executor ?? ?AHHH
-    // 0 eth
-    // 2 weth
+    // Proxy has the WETH (created via executor, delegating to executor)
+    // 0 ETH, 2 WETH
 
     let proxy_balance = provider.get_balance(executor.create(1)).await.unwrap();
-    assert_eq!(proxy_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(proxy_balance, U256::ZERO);
 
     let weth9_contract = IERC20::new(WETH9, provider.clone());
     let proxy_weth_balance = weth9_contract
@@ -451,13 +478,17 @@ async fn test_wallet_can_proxy_create_small() {
     let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
     let multiplexed_withdraw_calldata = FlowBuilder::empty()
         .call(WETH9, &withdraw_calldata, U256::ZERO)
-        .optimize().build(); // multiplexed withdraw from weth
+        .optimize()
+        .build(); // multiplexed withdraw from weth
 
-    let fb = FlowBuilder::empty().call(
-        executor.create(1),
-        &multiplexed_withdraw_calldata,
-        U256::ZERO,
-    ).optimize().build(); // this should send 2 eth to weth and assign the same weth value to the executor
+    let fb = FlowBuilder::empty()
+        .call(
+            executor.create(1),
+            &multiplexed_withdraw_calldata,
+            U256::ZERO,
+        )
+        .optimize()
+        .build();
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
@@ -481,18 +512,17 @@ async fn test_wallet_can_proxy_create_small() {
     // 0 eth
     // 0 weth
     let executor_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(executor_balance, U256::ZERO);
 
     let weth9_contract = IERC20::new(WETH9, provider.clone());
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap();
     assert_eq!(executor_weth_balance, U256::ZERO);
 
-    // Proxy created via executor that points to the executor ?? ?AHHH
-    // 2 eth
-    // 0 weth
+    // Proxy now holds ETH (withdrew WETH back to ETH)
+    // 2 ETH, 0 WETH
 
     let proxy_balance = provider.get_balance(executor.create(1)).await.unwrap();
-    assert_eq!(proxy_balance, TWO_ETH); // executor shoud shave sent the value to WETH9
+    assert_eq!(proxy_balance, TWO_ETH);
 
     let weth9_contract = IERC20::new(WETH9, provider.clone());
     let proxy_weth_balance = weth9_contract
@@ -500,7 +530,7 @@ async fn test_wallet_can_proxy_create_small() {
         .call()
         .await
         .unwrap();
-    assert_eq!(proxy_weth_balance, U256::ZERO); 
+    assert_eq!(proxy_weth_balance, U256::ZERO);
 
     // bob -> executor -> ?? :fail:
     // bob -> proxy  :fail:
@@ -513,7 +543,7 @@ async fn test_wallet_can_proxy_create_ultimate() {
     // reality check
     let weth9_contract = IERC20::new(WETH9, provider.clone());
     let weth_balance = provider.get_balance(WETH9).await.unwrap();
-    assert_eq!(format!("{}", weth_balance), "2933633723194923479377016");
+    assert_eq!(format!("{}", weth_balance), "2933633723194923479377016"); // sanity check fork state
 
     // test WALLETs
     // 0x4141414141..4141414141  with 1001 eth
@@ -578,7 +608,10 @@ async fn test_wallet_can_proxy_create_ultimate() {
     // Deposit weth in the proxy account
     // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
     let deposit_calldata = [];
-    let fb = FlowBuilder::empty().call(WETH9, &deposit_calldata, TWO_ETH).optimize().build();
+    let fb = FlowBuilder::empty()
+        .call(WETH9, &deposit_calldata, TWO_ETH)
+        .optimize()
+        .build();
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
@@ -600,27 +633,30 @@ async fn test_wallet_can_proxy_create_ultimate() {
     // 0 eth
     // 0 weth
     let executor_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(executor_balance, U256::ZERO);
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap();
-    assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
+    assert_eq!(executor_weth_balance, U256::ZERO);
 
     // Proxy(Executor) account has 2 weth
     // 0 eth
     // 2 weth
     let proxy_executor_balance = provider.get_balance(proxy_executor).await.unwrap();
-    assert_eq!(proxy_executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(proxy_executor_balance, U256::ZERO);
     let proxy_executor_weth_balance = weth9_contract
         .balanceOf(proxy_executor)
         .call()
         .await
         .unwrap();
-    assert_eq!(proxy_executor_weth_balance, TWO_ETH); // executor should have 2 eth worth of weth
+    assert_eq!(proxy_executor_weth_balance, TWO_ETH);
 
     ////////////////////////////////////////////////////////////
     // Whithdraw weth from the proxy account
     // Use the deployed Proxy(Executor) contract (WALLET is the owner) to deposit weth
     let withdraw_calldata = IWETH::withdrawCall { amount: TWO_ETH }.abi_encode();
-    let fb = FlowBuilder::empty().call(WETH9, &withdraw_calldata, U256::ZERO).optimize().build();
+    let fb = FlowBuilder::empty()
+        .call(WETH9, &withdraw_calldata, U256::ZERO)
+        .optimize()
+        .build();
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
@@ -642,9 +678,9 @@ async fn test_wallet_can_proxy_create_ultimate() {
     // 0 eth
     // 0 weth
     let executor_balance = provider.get_balance(executor).await.unwrap();
-    assert_eq!(executor_balance, U256::ZERO); // executor shoud shave sent the value to WETH9
+    assert_eq!(executor_balance, U256::ZERO);
     let executor_weth_balance = weth9_contract.balanceOf(executor).call().await.unwrap();
-    assert_eq!(executor_weth_balance, U256::ZERO); // executor should have 2 eth worth of weth
+    assert_eq!(executor_weth_balance, U256::ZERO);
 
     // Proxy(Executor) account has 2 weth
     // 2 eth
@@ -730,7 +766,8 @@ async fn test_extcodecopy() {
         .set_cleardata_op(flipper_init.len() as u16)
         .set_data_op(0, &flipper_init)
         .create_op(flipper1)
-        .optimize().build();
+        .optimize()
+        .build();
 
     // create normal flipper account. Using data ops
     let tx = TransactionRequest::default()
@@ -770,7 +807,8 @@ async fn test_extcodecopy() {
             created_flipper_runtime.len() as u16,
         )
         .create_op(flipper2)
-        .optimize().build();
+        .optimize()
+        .build();
 
     let tx = TransactionRequest::default()
         .with_from(WALLET)
@@ -795,7 +833,7 @@ async fn test_extcodecopy() {
     assert_eq!(created_flipper2_runtime, created_flipper_runtime);
 }
 
-// This test test a simple flashloan with morpho 
+// This test test a simple flashloan with morpho
 #[tokio::test]
 async fn test_flashloan_success_with_callback() {
     let provider = setup_provider().await;
@@ -803,8 +841,9 @@ async fn test_flashloan_success_with_callback() {
 
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH,
-    }.abi_encode();
+        value: TEN_ETH,
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .call(WETH9, &approve_calldata, U256::ZERO)
@@ -813,9 +852,10 @@ async fn test_flashloan_success_with_callback() {
 
     let flashloan_calldata = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -832,7 +872,11 @@ async fn test_flashloan_success_with_callback() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 }
 
@@ -843,8 +887,9 @@ async fn test_flashloan_fails_without_callback() {
 
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH,
-    }.abi_encode();
+        value: TEN_ETH,
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .call(WETH9, &approve_calldata, U256::ZERO)
@@ -853,9 +898,10 @@ async fn test_flashloan_fails_without_callback() {
 
     let flashloan_calldata = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -871,7 +917,11 @@ async fn test_flashloan_fails_without_callback() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(!receipt.status());
 }
 
@@ -882,8 +932,9 @@ async fn test_multiple_flashloans_with_callback_reset() {
 
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH,
-    }.abi_encode();
+        value: TEN_ETH,
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .call(WETH9, &approve_calldata, U256::ZERO)
@@ -892,9 +943,10 @@ async fn test_multiple_flashloans_with_callback_reset() {
 
     let flashloan_calldata = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -913,7 +965,11 @@ async fn test_multiple_flashloans_with_callback_reset() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 }
 
@@ -924,8 +980,9 @@ async fn test_multiple_flashloans_fails_without_callback_reset() {
 
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH,
-    }.abi_encode();
+        value: TEN_ETH,
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .call(WETH9, &approve_calldata, U256::ZERO)
@@ -934,9 +991,10 @@ async fn test_multiple_flashloans_fails_without_callback_reset() {
 
     let flashloan_calldata = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -954,7 +1012,11 @@ async fn test_multiple_flashloans_fails_without_callback_reset() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(!receipt.status());
 }
 
@@ -965,8 +1027,9 @@ async fn test_nested_flashloan_success() {
 
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH,
-    }.abi_encode();
+        value: TEN_ETH,
+    }
+    .abi_encode();
 
     let fb_approve = FlowBuilder::empty()
         .call(WETH9, &approve_calldata, U256::ZERO)
@@ -975,9 +1038,10 @@ async fn test_nested_flashloan_success() {
 
     let flashloan_calldata_inner = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb_approve.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb_inner = FlowBuilder::empty()
         .set_fail()
@@ -989,9 +1053,10 @@ async fn test_nested_flashloan_success() {
 
     let flashloan_calldata_outer = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb_inner.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -1008,7 +1073,11 @@ async fn test_nested_flashloan_success() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 }
 
@@ -1019,8 +1088,9 @@ async fn test_nested_flashloan_fails_without_callback() {
 
     let approve_calldata = IERC20::approveCall {
         spender: MORPHO,
-        value: ONEHUNDRED_ETH,
-    }.abi_encode();
+        value: TEN_ETH,
+    }
+    .abi_encode();
 
     let fb_approve = FlowBuilder::empty()
         .call(WETH9, &approve_calldata, U256::ZERO)
@@ -1029,9 +1099,10 @@ async fn test_nested_flashloan_fails_without_callback() {
 
     let flashloan_calldata_inner = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb_approve.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb_inner = FlowBuilder::empty()
         .set_fail()
@@ -1042,9 +1113,10 @@ async fn test_nested_flashloan_fails_without_callback() {
 
     let flashloan_calldata_outer = IMorpho::flashLoanCall {
         token: WETH9,
-        assets: ONEHUNDRED_ETH,
+        assets: TEN_ETH,
         data: fb_inner.into(),
-    }.abi_encode();
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -1061,7 +1133,11 @@ async fn test_nested_flashloan_fails_without_callback() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(!receipt.status());
 }
 
@@ -1077,13 +1153,13 @@ async fn test_flashloan_aave3_success_with_callback() {
     // Aave V3 Pool contract on mainnet
     const AAVE3_POOL: Address = address!("87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2");
     // Flash loan premium rate (0.05%)
-    const PREMIUM_FACTOR: U256 = uint!(500000000000000_U256);
-    
+    const PREMIUM_FACTOR: U256 = uint!(500000000000000_U256); // 0.05%
+
     let provider = setup_provider().await;
     let executor = deploy_executor(&provider).await;
 
     // Calculate premium for 100 ETH flash loan
-    let premium = ONEHUNDRED_ETH * PREMIUM_FACTOR / uint!(1000000000000000000_U256);
+    let premium = TEN_ETH * PREMIUM_FACTOR / uint!(1000000000000000000_U256);
 
     // First send premium amount to executor so it can repay the flash loan
     let tx = TransactionRequest::default()
@@ -1093,7 +1169,11 @@ async fn test_flashloan_aave3_success_with_callback() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 
     sol! {
@@ -1113,10 +1193,15 @@ async fn test_flashloan_aave3_success_with_callback() {
         // First deposit ETH to get WETH for the premium
         .call(WETH9, &[], premium)
         // Then transfer full amount back to Aave
-        .call(WETH9, &IERC20::approveCall {
-            spender: AAVE3_POOL,
-            value: ONEHUNDRED_ETH + premium,
-        }.abi_encode(), U256::ZERO)
+        .call(
+            WETH9,
+            &IERC20::approveCall {
+                spender: AAVE3_POOL,
+                value: TEN_ETH + premium,
+            }
+            .abi_encode(),
+            U256::ZERO,
+        )
         .optimize()
         .build_raw();
 
@@ -1124,10 +1209,11 @@ async fn test_flashloan_aave3_success_with_callback() {
     let flashloan_calldata = IAavePool::flashLoanSimpleCall {
         receiverAddress: executor,
         asset: WETH9,
-        amount: ONEHUNDRED_ETH,
+        amount: TEN_ETH,
         params: repay_fb.into(),
-        referralCode: 0
-    }.abi_encode();
+        referralCode: 0,
+    }
+    .abi_encode();
 
     let fb = FlowBuilder::empty()
         .set_fail()
@@ -1144,6 +1230,10 @@ async fn test_flashloan_aave3_success_with_callback() {
 
     let tx_hash = provider.eth_send_unsigned_transaction(tx).await.unwrap();
     provider.evm_mine(None).await.unwrap();
-    let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(receipt.status());
 }
